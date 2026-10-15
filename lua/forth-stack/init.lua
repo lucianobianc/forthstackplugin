@@ -78,6 +78,7 @@ function M.show(trace, bufnr, base)
   close_inspect(states[bufnr])
   states[bufnr] = { lines = lines, visible = true }
   display.render(bufnr, lines)
+  if bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
 end
 
 function M.load(path, bufnr)
@@ -94,14 +95,28 @@ function M.toggle(bufnr)
   close_inspect(state)
   state.visible = not state.visible
   if state.visible then display.render(bufnr, state.lines) else display.clear(bufnr) end
+  if state.visible and bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
   return state.visible
+end
+
+function M.cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local state = states[bufnr]
+  if state and state.visible then
+    display.cursor(bufnr, state.lines, vim.api.nvim_win_get_cursor(0))
+  end
 end
 
 function M.inspect(bufnr, line)
   bufnr = buffer(bufnr)
   local state = states[bufnr]
-  line = line or vim.api.nvim_win_get_cursor(0)[1]
+  local position = vim.api.nvim_win_get_cursor(0)
+  local explicit_line = line ~= nil
+  line = line or position[1]
   local history = state and state.lines[line]
+  if not explicit_line and history then
+    history = display.at_token(history, position[2]) or history
+  end
   if not history then return nil end
   close_inspect(state)
   state.window = display.inspect(history)
@@ -182,6 +197,11 @@ end
 vim.api.nvim_create_autocmd('BufFilePost', {
   group = vim.api.nvim_create_augroup('ForthStackSource', { clear = true }),
   callback = function(args) M.clear(args.buf) end,
+})
+
+vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter', 'WinEnter' }, {
+  group = 'ForthStackSource',
+  callback = function() M.cursor() end,
 })
 
 vim.api.nvim_create_autocmd('BufReadPost', {

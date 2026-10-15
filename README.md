@@ -96,6 +96,20 @@ Coverage is still partial: not every Forth operation is traced. See the
 [limitations](doc/neovim-display.md#validation-and-limits) for details about the
 states shown.
 
+## Explore a line with the cursor
+
+After `:ForthStackRun`, move the cursor over a number or word to see the stack
+immediately after that token. It appears inline, between tokens; the end of the
+line still shows its final stack. Nothing is inserted into your source.
+
+For `10 20 +`, the cursor reveals `[ 10 ]` over `10`, `[ 10, 20 ]` over `20`,
+and `[ 30 ]` over `+`. `:ForthStackInspect` also uses the token under the cursor.
+
+This shows recorded execution, so unexecuted tokens have no inline stack.
+For loops or repeated calls, it shows the most recent execution of that token.
+Whitespace has no inline annotation. Cursor annotations are shared between
+windows displaying the same buffer.
+
 ## Label your values
 
 Add `( LABEL: age )` after a value, then run `:ForthStackRun`.

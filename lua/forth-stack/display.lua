@@ -1,5 +1,6 @@
 local M = {}
 M.namespace = vim.api.nvim_create_namespace('forth-stack')
+M.cursor_namespace = vim.api.nvim_create_namespace('forth-stack-cursor')
 
 function M.stack(values, elements)
   local text = {}
@@ -13,6 +14,7 @@ end
 function M.clear(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, -1)
+    vim.api.nvim_buf_clear_namespace(bufnr, M.cursor_namespace, 0, -1)
   end
 end
 
@@ -27,6 +29,30 @@ function M.render(bufnr, lines)
       virt_text_pos = 'eol',
     })
   end
+end
+
+-- Columns in traces are one-based bytes; Neovim cursor columns are zero-based.
+function M.at_token(history, column)
+  local selected = {}
+  for _, event in ipairs(history or {}) do
+    local start = event.column_bytes - 1
+    if column >= start and column < start + #event.token then
+      selected[#selected + 1] = event
+    end
+  end
+  return #selected > 0 and selected or nil
+end
+
+function M.cursor(bufnr, lines, position)
+  vim.api.nvim_buf_clear_namespace(bufnr, M.cursor_namespace, 0, -1)
+  local history = M.at_token(lines[position[1]], position[2])
+  if not history then return end
+  local last = history[#history]
+  vim.api.nvim_buf_set_extmark(bufnr, M.cursor_namespace, position[1] - 1,
+    last.column_bytes - 1 + #last.token, {
+      virt_text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }},
+      virt_text_pos = 'inline', right_gravity = false,
+    })
 end
 
 function M.inspect(history)

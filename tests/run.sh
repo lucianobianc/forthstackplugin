@@ -27,3 +27,4 @@ XDG_CACHE_HOME="$trace_directory/cache" \
 nvim --headless -u NONE -i NONE -l tests/test_live.lua
 nvim --headless -u NONE -i NONE -l tests/test_filemode.lua
 nvim --headless -u NONE -i NONE -l tests/test_labels.lua
+nvim --headless -u NONE -i NONE -l tests/test_cursor.lua

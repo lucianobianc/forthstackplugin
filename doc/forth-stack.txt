@@ -118,4 +118,14 @@ processes launched by the program are not managed.
 Read README.md, doc/neovim-display.md, and doc/gforth-instrumentation.md in the
 repository for installation, protocol details, and the full investigation.
 
+CURSOR STACKS
+
+After :ForthStackRun, move over a traced token to display its stack inline.
+The end-of-line annotation continues to show the final observation on the line.
+:ForthStackInspect selects the token under the cursor, falling back to the line
+when no traced token is selected. Inline text does not modify the source.
+Repeated tokens show their most recent execution, not an execution history.
+Unexecuted tokens and whitespace have no inline observation. Cursor annotations
+are shared between windows showing the same buffer.
+
  vim:tw=78:ts=8:noet:ft=help:norl:
