@@ -159,10 +159,18 @@ SYMBOLIC ANALYSIS AND ERRORS
 Use :ForthStackAnalyze for one analysis without running the file. It pauses
 execution; :ForthStackRun resumes it. Symbolic inputs come from ( in -- out )
 comments following definition names. Analyzed output counts are checked against
-the declaration, then matching positions receive the output names. These are
+the declaration, then unknown positions receive output names; constants stay
+numeric. Outputs may be fixed, ... or alternatives separated by |. These are
 symbols, not concrete values. Supported: basic stack/arithmetic/comparison words,
-earlier declared contracts, and simple IF/ELSE/THEN. Unsupported operations,
-loops, recursion, variable effects and non-data stacks stop analysis with a notice.
+earlier supported bodies or explicit contract assumptions, and IF/ELSE/THEN.
+Known values resolve ?dup; otherwise [ 0 ] | [ n, n ] shows its alternatives.
+Later operations follow each path; failing paths warn and stop. Unsupported
+operations, loops, recursion and non-data stacks stop analysis with a notice.
+Native ." preserves the stack while its string is skipped as data. Unknown
+effects report "Effect unknown" rather than inventing quantities.
+At most 16 paths, 16 nesting levels and 50000 abstract steps are explored.
+Observation budgets: 10000 events, 100000 cell snapshots, 4 MiB of snapshot text. Line
+and inline views summarize after four different stacks; Inspect lists them.
 Contract depth errors warn. See doc/symbolic-analysis.md for full boundaries.
 
 Actual failures produce Neovim error diagnostics at the responsible call (red in

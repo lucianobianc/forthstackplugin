@@ -13,6 +13,7 @@ local function lex(lines)
   local text = table.concat(lines, '\n')
   if #text > 4 * 1024 * 1024 then return {}, true end
   local tokens, i, line, col = {}, 1, 1, 1
+  local expecting_name, shadowed = false, {}
   local function advance()
     if text:sub(i, i) == '\n' then line, col = line + 1, 1 else col = col + 1 end
     i = i + 1
@@ -24,9 +25,12 @@ local function lex(lines)
       while i <= #text and not text:sub(i, i):match('%s') do advance() end
       local value = text:sub(start, i - 1)
       local token = { token = value, line = row, column_bytes = column }
+      local is_name = expecting_name
+      expecting_name = value == ':' and not is_name
+      if is_name then shadowed[value:lower()] = true end
       if value == '\\' then
         while i <= #text and text:sub(i, i) ~= '\n' do advance() end
-      elseif value == '(' or value == '.(' then
+      elseif not is_name and not shadowed[value:lower()] and (value == '(' or value == '.(') then
         local body = i
         while i <= #text and text:sub(i, i) ~= ')' do advance() end
         if value == '(' then token.comment = text:sub(body, i - 1) else token.string = true end
@@ -35,11 +39,12 @@ local function lex(lines)
         tokens[#tokens + 1] = token
       else
         tokens[#tokens + 1] = token
-        if value:lower() == 's"' or value:lower() == 'c"' or value == '."' or value:lower() == 'abort"' then
+        if not is_name and not shadowed[value:lower()] and (value:lower() == 's"' or value:lower() == 'c"' or value == '."' or value:lower() == 'abort"') then
           token.string = true
-          while i <= #text and text:sub(i, i) ~= '"' do advance() end
-          if i <= #text then advance() end
-        elseif ({ ["'"] = true, ["[']"] = true, ['[char]'] = true, char = true, postpone = true, ['[compile]'] = true })[value:lower()] then
+          while i <= #text and text:sub(i, i) ~= '"' and text:sub(i, i) ~= '\n' do advance() end
+          token.closed = text:sub(i, i) == '"'
+          if token.closed then advance() end
+        elseif not is_name and ({ ["'"] = true, ["[']"] = true, ['[char]'] = true, char = true, postpone = true, ['[compile]'] = true })[value:lower()] then
           -- These parse the next name; a quoted ':' or ';' is not a delimiter.
           while i <= #text and text:sub(i, i):match('%s') do advance() end
           while i <= #text and not text:sub(i, i):match('%s') do advance() end
@@ -56,28 +61,31 @@ local function effect(comment)
   if comment:match('^%s*%-%-') then left, right = '', comment:match('^%s*%-%-%s*(.-)%s*$') end
   if not left or right:find('%-%-') then return nil, 'Malformed stack effect' end
   local inputs, outputs = words(left), words(right)
+  for _, name in ipairs(inputs) do
+    if name == '...' or name:find('[:|%[%]{}]') then return nil, 'Only fixed data-stack inputs are supported (one name per cell)' end
+  end
   for _, name in ipairs(words(left .. ' ' .. right)) do
     if #name > 64 then return nil, 'Stack effect names must have at most 64 bytes' end
-    if name:find('[:|%[%]{}]') or name == '...' then
-      return nil, 'Only fixed data-stack effects are supported (one name per cell)'
-    end
+    if name:find('[:%[%]{}]') then return nil, 'Only data-stack effects are supported' end
   end
-  if #inputs > 256 or #outputs > 256 then return nil, 'Stack effect exceeds 256 cells' end
-  return { inputs = inputs, outputs = outputs }
-end
-
-local binary = {}
-for _, op in ipairs({ '+', '-', '*', '/', 'mod', '=', '<>', '<', '>', '<=', '>=', 'u<', 'u>', 'and', 'or', 'xor', 'lshift', 'rshift', 'min', 'max' }) do binary[op] = true end
-local unary = {}
-for _, op in ipairs({ '0=', '0<>', '0<', '0>', 'negate', 'abs', 'invert', '2*', '2/' }) do unary[op] = true end
-local function expression(s)
-  return #s > 96 and '?' or s
+  if #inputs > 256 then return nil, 'Stack effect exceeds 256 cells' end
+  if right == '...' then return { inputs = inputs, flexible = true } end
+  local options, current = {}, {}
+  for _, name in ipairs(outputs) do
+    if name == '...' then return nil, 'Use ... alone for unspecified outputs' end
+    if name == '|' then options[#options + 1], current = current, {}
+    else current[#current + 1] = name end
+  end
+  options[#options + 1] = current
+  for _, names in ipairs(options) do if #names > 256 then return nil, 'Stack effect exceeds 256 cells' end end
+  return { inputs = inputs, outputs = options[1], output_options = options }
 end
 
 function M.analyze(contents)
   local tokens, limited = lex(contents)
   local result = { lines = {}, diagnostics = {} }
-  local vocabulary, dictionary_unknown, last_defined = {}, false, nil
+  local vocabulary, dictionary_unknown, last_defined, base = {}, false, nil, 10
+  local budget = { steps = 0, events = 0, cells = 0, bytes = 0 }
   local function diagnostic(token, message, severity)
     result.diagnostics[#result.diagnostics + 1] = {
       lnum = token.line - 1, col = token.column_bytes - 1,
@@ -88,152 +96,125 @@ function M.analyze(contents)
   end
   local i = 1
   while i <= #tokens do
+    if budget.exhausted or budget.steps > 50000 then break end
     local opening = tokens[i]
     if opening.token == ':' and not opening.comment then
       local name = tokens[i + 1]
       if not name then break end
       local signature, problem, body = nil, nil, i + 2
       while tokens[body] and tokens[body].comment do
-        if not signature and tokens[body].comment:find('%-%-') then
-          signature, problem = effect(tokens[body].comment)
-        end
+        if not signature and tokens[body].comment:find('%-%-') then signature, problem = effect(tokens[body].comment) end
         body = body + 1
       end
       local finish = body
       while tokens[finish] and (tokens[finish].token ~= ';' or tokens[finish].comment) do finish = finish + 1 end
       local key = name.token:lower()
-      -- A newly defined name shadows builtins, even without a usable contract.
-      local function analyze_definition()
-        if dictionary_unknown and signature then
-          diagnostic(name, 'Dictionary-changing source precedes this definition; analysis incomplete'); return
+      local def = { name = name, signature = signature, code = {}, jumps = {} }
+      local controls = {}
+      for index = body, finish - 1 do
+        local token = vim.tbl_extend('force', {}, tokens[index], { base = base })
+        local op = token.token:lower()
+        token.called = vocabulary[op]
+        def.code[#def.code + 1] = token
+        if not token.comment and not token.string and token.called == nil then
+          local pc = #def.code
+          if op == 'if' then controls[#controls + 1] = { start = pc }
+          elseif op == 'else' then
+            local control = controls[#controls]
+            if control and not control.otherwise then control.otherwise = pc end
+          elseif op == 'then' then
+            local control = table.remove(controls)
+            if control then def.jumps[control.start] = { otherwise = control.otherwise, finish = pc } end
+          end
         end
+      end
+      local function analyze_definition()
+        if dictionary_unknown and signature then diagnostic(name, 'Dictionary-changing source precedes this definition; analysis incomplete'); return end
         if problem then diagnostic(name, problem .. '; analysis incomplete'); return end
         if not signature then return end
         if not tokens[finish] then diagnostic(name, 'Incomplete definition; analysis incomplete'); return end
-        local stack, branches, observations = vim.deepcopy(signature.inputs), {}, {}
-        local failed = false
-        local function stop(token, message, severity)
-          diagnostic(token, message, severity); failed = true
-        end
-        local function need(token, count)
-          if #stack < count then
-            stop(token, 'Documented stack effect provides too few cells for ' .. token.token
-              .. ' (needs ' .. count .. ', has ' .. #stack .. ')', vim.diagnostic.severity.WARN)
+        local ctx = require('forth-stack.abstract').new(diagnostic, budget)
+        local observations = {}
+        local function observe(token, paths)
+          if #paths == 0 then return end
+          local alternatives, constants, assumed = ctx.snapshots(paths)
+          budget.events = budget.events + 1
+          for _, stack in ipairs(alternatives) do
+            budget.cells = budget.cells + #stack
+            for _, text in ipairs(stack) do budget.bytes = budget.bytes + #text end
+          end
+          if budget.events > 10000 or budget.cells > 100000 or budget.bytes > 4 * 1024 * 1024 then
+            budget.exhausted = true
+            ctx.notice(token, 'Analysis incomplete: observation budget reached (10000 events / 100000 cells / 4 MiB)')
             return false
           end
-          return true
-        end
-        local function observe(token)
-          local event = vim.tbl_extend('force', {}, token, { stack = vim.deepcopy(stack), symbolic = true,
-            phase = 'symbolic', seq = #observations, word = name.token })
+          local event = { token = token.token, line = token.line, column_bytes = token.column_bytes,
+            stack = alternatives[1], alternatives = alternatives, constants = constants,
+            symbolic = true, phase = 'symbolic', seq = #observations,
+            word = name.token, assumed = assumed, valid_paths_only = ctx.warned,
+          }
           observations[#observations + 1] = event
           result.lines[token.line] = result.lines[token.line] or {}
           table.insert(result.lines[token.line], event)
         end
-        observe(name)
+        local seeds = ctx.seed(signature.inputs)
+        if observe(name, seeds) == false then return end
         observations[1].input = true
-        for index = body, finish - 1 do
-          local token, op = tokens[index], tokens[index].token:lower()
-          if token.comment then
-            -- LABEL comments remain runtime labels; input names come from the contract.
-          elseif token.string then
-            stop(token, 'Analysis incomplete at string/parsing word ' .. token.token)
-          elseif vocabulary[op] ~= nil then
-            local called = vocabulary[op]
-            if not called or not called.inputs then stop(token, 'No usable stack effect for ' .. token.token .. '; analysis incomplete')
-            elseif need(token, #called.inputs) then
-              local arguments = {}
-              for n = #called.inputs, 1, -1 do arguments[n] = table.remove(stack) end
-              for _, output in ipairs(called.outputs) do
-                -- A preserved input name denotes the corresponding caller symbol.
-                local value = output
-                for n, input in ipairs(called.inputs) do if output == input then value = arguments[n]; break end end
-                stack[#stack + 1] = value
-              end
-            end
-          elseif op == 'if' then
-            if need(token, 1) then
-              table.remove(stack)
-              branches[#branches + 1] = { input = vim.deepcopy(stack) }
-            end
-          elseif op == 'else' then
-            local branch = branches[#branches]
-            if not branch or branch.yes then stop(token, 'Unmatched ELSE; analysis incomplete')
-            else branch.yes, stack = vim.deepcopy(stack), vim.deepcopy(branch.input) end
-          elseif op == 'then' then
-            local branch = table.remove(branches)
-            if not branch then stop(token, 'Unmatched THEN; analysis incomplete')
-            else
-              local other = branch.yes or branch.input
-              if #other ~= #stack then stop(token, 'Branches leave different stack depths; analysis incomplete', vim.diagnostic.severity.WARN)
-              else
-                for n = 1, #stack do
-                  if stack[n] ~= other[n] then stack[n] = '?' end
+        local paths = ctx.run(def, seeds, observe)
+        if not paths or #paths == 0 then return end
+        local mismatch, depths = false, {}
+        if signature.output_options then
+          for _, path in ipairs(paths) do
+            depths[#path.stack] = true
+            local matches = 0
+            for _, outputs in ipairs(signature.output_options) do if #outputs == #path.stack then matches = matches + 1 end end
+            if matches == 0 then mismatch = true end
+          end
+          if mismatch then
+            local counts = {}; for count in pairs(depths) do counts[#counts + 1] = count end; table.sort(counts)
+            diagnostic(tokens[finish], 'Stack effect mismatch: ' .. (#counts > 1 and 'alternatives leave different stack depths (' or 'body leaves ')
+              .. table.concat(counts, ' or ') .. (#counts > 1 and ')' or '') .. '; declared outputs do not match', vim.diagnostic.severity.WARN)
+          elseif not ctx.incomplete and not ctx.warned and #observations > 1 then
+            local event = observations[#observations]
+            for n, stack in ipairs(event.alternatives) do
+              local matches = {}
+              for _, outputs in ipairs(signature.output_options) do if #outputs == #stack then matches[#matches + 1] = outputs end end
+              if #matches == 1 then
+                for cell, label in ipairs(matches[1]) do
+                  if not event.constants[n][cell] then stack[cell] = label end
                 end
               end
             end
-          elseif op == key then
-            stop(token, 'Recursive definition; analysis incomplete')
-          elseif op:match('^[+-]?%d+$') or op:match('^%$[%da-f]+$') or op:match('^%%[01]+$') or op:match('^#%-?%d+$') then
-            stack[#stack + 1] = token.token
-          elseif op == 'true' or op == 'false' then stack[#stack + 1] = op
-          elseif op == 'dup' or op == '?dup' then
-            if op == '?dup' then stop(token, 'Value-dependent stack effect at ?dup; analysis incomplete')
-            elseif need(token, 1) then stack[#stack + 1] = stack[#stack] end
-          elseif op == 'drop' then if need(token, 1) then table.remove(stack) end
-          elseif op == 'swap' then
-            if need(token, 2) then stack[#stack], stack[#stack - 1] = stack[#stack - 1], stack[#stack] end
-          elseif op == 'over' then if need(token, 2) then stack[#stack + 1] = stack[#stack - 1] end
-          elseif op == 'rot' then
-            if need(token, 3) then local value = table.remove(stack, #stack - 2); stack[#stack + 1] = value end
-          elseif op == 'nip' then if need(token, 2) then table.remove(stack, #stack - 1) end
-          elseif op == 'tuck' then if need(token, 2) then table.insert(stack, #stack - 1, stack[#stack]) end
-          elseif op == '2dup' then
-            if need(token, 2) then local a, b = stack[#stack - 1], stack[#stack]; stack[#stack + 1] = a; stack[#stack + 1] = b end
-          elseif op == '2drop' then if need(token, 2) then table.remove(stack); table.remove(stack) end
-          elseif op == '1+' or op == '1-' then
-            if need(token, 1) then stack[#stack] = expression('(' .. stack[#stack] .. (op == '1+' and ' + 1)' or ' - 1)')) end
-          elseif binary[op] then
-            if need(token, 2) then
-              local b, a = table.remove(stack), table.remove(stack)
-              stack[#stack + 1] = expression('(' .. a .. ' ' .. token.token .. ' ' .. b .. ')')
-            end
-          elseif unary[op] then
-            if need(token, 1) then stack[#stack] = expression(token.token .. '(' .. stack[#stack] .. ')') end
-          elseif op == '.' or op == 'emit' then if need(token, 1) then table.remove(stack) end
-          elseif op == 'cr' or op == 'noop' then
-          else stop(token, 'Analysis incomplete at unsupported word ' .. token.token) end
-          if failed then break end
-          if #stack > 256 then stop(token, 'Symbolic stack exceeds 256 cells'); break end
-          if not token.comment then observe(token) end
-        end
-        if not failed and #branches > 0 then stop(name, 'Unclosed conditional; analysis incomplete') end
-        if not failed then
-          if #stack ~= #signature.outputs then
-            diagnostic(tokens[finish], 'Stack effect mismatch: declares ' .. #signature.outputs
-              .. ' output cells, body leaves ' .. #stack, vim.diagnostic.severity.WARN)
-          elseif #observations > 1 then
-            -- The documented names label the verified output positions.
-            observations[#observations].stack = vim.deepcopy(signature.outputs)
+            event.stack = event.alternatives[1]
           end
         end
+        local assumed = false
+        for _, path in ipairs(paths) do assumed = assumed or path.assumed end
+        def.inferable = not ctx.incomplete and not assumed
+        def.verified = def.inferable and not ctx.warned and not mismatch
       end
-      -- Recursive calls must not silently use an older definition of this name.
-      vocabulary[key] = nil
       analyze_definition()
-      vocabulary[key] = signature or false
+      vocabulary[key] = def
       last_defined = key
       i = finish + 1
     elseif not opening.comment and opening.token:lower() == 'immediate' then
       if last_defined then vocabulary[last_defined] = false end
       i = i + 1
-    elseif not opening.comment and ({ include = true, included = true, require = true, required = true, evaluate = true, vocabulary = true, also = true, previous = true, only = true, definitions = true, ['[if]'] = true, execute = true, catch = true, is = true, ['does>'] = true, [':noname'] = true })[opening.token:lower()] then
+    elseif not opening.comment and not opening.string and (opening.token:lower() == 'hex' or opening.token:lower() == 'decimal') then
+      if vocabulary[opening.token:lower()] ~= nil then dictionary_unknown = true
+      else base = opening.token:lower() == 'hex' and 16 or 10 end
+      i = i + 1
+    elseif not opening.comment and ({ include = true, included = true, require = true, required = true, evaluate = true, vocabulary = true, also = true, previous = true, only = true, definitions = true, ['[if]'] = true, execute = true, catch = true, is = true, ['does>'] = true, [':noname'] = true, base = true })[opening.token:lower()] then
       dictionary_unknown = true
       i = i + 1
     elseif not opening.comment and ({ constant = true, variable = true, value = true, create = true, defer = true })[opening.token:lower()] then
       if tokens[i + 1] then vocabulary[tokens[i + 1].token:lower()] = false end
       i = i + 2
-    else i = i + 1 end
+    else
+      local called = vocabulary[opening.token:lower()]
+      if called and not called.inferable and not opening.comment then dictionary_unknown = true end
+      i = i + 1
+    end
   end
   if limited then diagnostic(tokens[#tokens] or { line = 1, column_bytes = 1, token = '' },
     'Symbolic source/token limit reached (4 MiB / 50000 tokens); remaining source was not analyzed') end
@@ -255,9 +236,9 @@ function M.render(bufnr, analysis, runtime)
   for line, history in pairs(analysis.lines) do
     if not top[line] then
       local last = history[#history]
-      local stack = #last.stack == 0 and '[ ]' or '[ ' .. table.concat(last.stack, ', ') .. ' ]'
+      local stack = require('forth-stack.display').observation(last)
       vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
-        virt_text = {{ stack .. (last.input and '  symbolic inputs' or '  symbolic'), 'ForthStackValue' }}, virt_text_pos = 'eol',
+        virt_text = {{ stack .. '  ' .. require('forth-stack.display').symbolic_context(last), 'ForthStackValue' }}, virt_text_pos = 'eol',
       })
     end
   end

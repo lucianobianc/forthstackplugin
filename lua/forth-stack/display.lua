@@ -11,6 +11,34 @@ function M.stack(values, elements)
   return #text == 0 and '[ ]' or '[ ' .. table.concat(text, ', ') .. ' ]'
 end
 
+function M.symbolic_context(event)
+  if event.input then return 'symbolic inputs' end
+  local notes = {}
+  if event.assumed then notes[#notes + 1] = 'contract assumed' end
+  if event.valid_paths_only then notes[#notes + 1] = 'valid paths only' end
+  return 'symbolic' .. (#notes > 0 and (' (' .. table.concat(notes, '; ') .. ')') or '')
+end
+
+function M.observation(event, maximum)
+  if not event.alternatives then return M.stack(event.stack, event.elements) end
+  local seen, alternatives = {}, {}
+  local minimum, maximum_depth
+  for _, stack in ipairs(event.alternatives) do
+    local text = M.stack(stack)
+    if not seen[text] then
+      seen[text] = true; alternatives[#alternatives + 1] = text
+      minimum = math.min(minimum or #stack, #stack)
+      maximum_depth = math.max(maximum_depth or #stack, #stack)
+    end
+  end
+  local visible = {}
+  for n = 1, math.min(#alternatives, maximum or 4) do visible[n] = alternatives[n] end
+  if #visible < #alternatives then
+    visible[#visible + 1] = string.format('... (%d alternatives; depth %d..%d)', #alternatives, minimum, maximum_depth)
+  end
+  return table.concat(visible, ' | ')
+end
+
 function M.clear(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, -1)
@@ -65,9 +93,9 @@ function M.cursor(bufnr, lines, position, line_end)
   if not history then return end
   local last = history[#history]
   if last == line_end then return end -- the same observation is already visible
-  local text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }}
+  local text = {{ ' ' .. M.observation(last) .. ' ', 'ForthStackValue' }}
   if last.partial then text[#text + 1] = { '(before error) ', 'ForthStackValue' } end
-  if last.symbolic then text[#text + 1] = { '(symbolic) ', 'ForthStackValue' }
+  if last.symbolic then text[#text + 1] = { '(' .. M.symbolic_context(last) .. ') ', 'ForthStackValue' }
   elseif last.compiled then text[#text + 1] = { '(last call) ', 'ForthStackValue' } end
   vim.api.nvim_buf_set_extmark(bufnr, M.cursor_namespace, position[1] - 1,
     last.column_bytes - 1 + #last.token, {
@@ -78,10 +106,20 @@ end
 
 function M.inspect(history)
   local last = history[#history]
-  local text = { 'Stack: ' .. M.stack(last.stack, last.elements),
+  local text = { 'Stack: ' .. M.observation(last),
     last.phase == 'label' and ('Label: ' .. last.label) or ('After: ' .. last.token),
     last.symbolic and 'Analysis: symbolic (documented stack effect)' or ('Event: ' .. last.seq), 'Observations on this line: ' .. #history,
     'Top on the right; value types are not inferred.' }
+  if last.valid_paths_only then text[#text + 1] = 'Some alternatives fail here or earlier; only surviving paths are shown.' end
+  if last.assumed then text[#text + 1] = 'Assumption: a declared callee contract was used; values are not proven.' end
+  if last.alternatives and #last.alternatives > 1 then
+    text[#text + 1] = 'Possible stacks (top on the right):'
+    local seen = {}
+    for _, alternative in ipairs(last.alternatives) do
+      local formatted = M.stack(alternative)
+      if not seen[formatted] then text[#text + 1] = formatted; seen[formatted] = true end
+    end
+  end
   if last.partial then text[#text + 1] = 'Execution incomplete: state recorded before error.' end
   if last.compiled then
     text[#text + 1] = 'Context: last call; this definition does not execute when declared.'

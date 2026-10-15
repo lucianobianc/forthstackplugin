@@ -118,7 +118,8 @@ never called. The comments on the right illustrate the generated annotations:
 ```
 
 Names before `--` are the starting stack; names after it label the outputs when
-the analyzed depth matches. `( name age id -- status )` starts with
+the analyzed depth matches; known numeric results retain their values.
+`( name age id -- status )` starts with
 `[ name, age, id ]`. These are symbols, not guessed numeric values.
 
 Analysis runs automatically with tracing. To analyze definitions once **without
@@ -129,6 +130,39 @@ annotations.
 Unknown operations, loops, and other unsupported constructs receive an
 “analysis incomplete” notice. Contract mismatches receive a warning. See
 [analysis rules and limits](doc/symbolic-analysis.md).
+
+### When an operation has several possible results
+
+A known value resolves `?dup` directly. Unknown input produces possible stacks
+separated by `|`, and analysis continues in each alternative:
+
+```forth
+: maybe ( n -- ... )
+  ?dup   \ [ 0 ] | [ n, n ]  symbolic
+  1+     \ [ 1 ] | [ n, (n + 1) ]  symbolic
+;
+
+: known ( -- n n )
+  2 3 + ?dup   \ [ 5, 5 ]  symbolic
+;
+
+: hello ( -- ) ." Hello world" ;   \ [ ]  symbolic
+```
+
+`...` declares unspecified outputs; you can also document alternatives such as
+`( n -- 0 | n n )`. The input count must still be fixed. A warning identifies
+alternatives that underflow; only safe continuations are shown after that point.
+An unknown operation instead reports `Effect unknown` and stops analysis there.
+
+Supported earlier word bodies propagate values into callers while their own
+annotations remain independent. When only a declaration can be used, the display
+says `contract assumed`; matching names do not prove unchanged values. Standard
+`."` strings are parsed and preserve the data stack; redefined words use their
+own analyzed body or contract.
+
+Analysis keeps at most 16 paths. Long displays summarize after four different
+stacks; Inspect lists the retained alternatives. Limits produce an explicit
+notice. See [analysis limits](doc/symbolic-analysis.md).
 
 ## See errors in the code
 

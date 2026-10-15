@@ -298,8 +298,9 @@ Documented definitions are now analyzed independently using their declared input
 names, including when uncalled. Symbolic annotations have a separate namespace
 and take priority over concrete body observations. Real top-level states retain
 priority on mixed lines. `ForthStackAnalyze` performs this analysis once without
-executing Forth. Basic stack/arithmetic operations, fixed declared calls, and
-simple branch joins are supported; other operations stop with a notice.
+executing Forth. Constant propagation, bounded alternative paths for ?dup and
+conditionals, supported callee-body inference, contract assumptions and native
+print strings are supported; other effects stop with an explicit notice.
 See [symbolic analysis and diagnostics](symbolic-analysis.md) for the complete
 supported subset, assumptions, warning semantics, and limits.
 
@@ -311,3 +312,20 @@ partial-observation path; JSON imports continue to require a successful complete
 trace. Partial observations retain normal token/value validation and explicit
 markers in end-of-line, inline and Inspect views. Edits, cancellation, filename
 and changedtick checks still prevent stale results from being installed.
+
+
+### Bounded alternative-path analysis
+
+`abstract.lua` evaluates supported operations over symbolic cells and safe exact
+constants, retaining up to 16 feasible stacks and copied-cell zero/nonzero facts.
+The output side of a comment may use `...` or alternatives separated by `|`.
+Native `."` consumes its same-line literal in the lexer and preserves the data
+stack; source redefinitions prevent native parsing/rule assumptions.
+
+Events retain `stack` for a representative presentation and `alternatives` for
+all displayed possible stacks. `assumed` marks contract-only calls and
+`valid_paths_only` marks continuations after failed alternatives. Runtime JSON
+and identity tracking are unchanged. The display shares one formatter across
+line/inline/Inspect views; compact views summarize after four stacks. Unsupported
+effects stop, rather than receiving guessed output counts. See the symbolic
+analysis document for folding rules, call binding, budgets and limitations.

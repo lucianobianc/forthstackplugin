@@ -1,6 +1,6 @@
 # Forth Stack Visualizer for Neovim
 
-**Project specification — Version 0.2**
+**Project specification — Version 0.3**
 
 - **Status:** Working experimental implementation; supported behavior and roadmap.
 - **Editor and platform:** Neovim 0.10 or later, primarily Linux.
@@ -168,7 +168,7 @@ See [label rules](doc/labels.md) for exact propagation and resynchronization rul
 
 ## 4. Independent symbolic definition analysis
 
-Automatic symbolic analysis is on by default and does not execute Forth. A fixed
+Automatic symbolic analysis is on by default and does not execute Forth. A
 stack-effect comment immediately after a definition's name supplies its inputs
 and intended outputs; intervening comments/newlines are allowed.
 
@@ -181,21 +181,37 @@ and intended outputs; intervening comments/newlines are allowed.
 
 `( name age id -- status )` seeds `[ name, age, id ]`, independently of the
 rest of the program. Each name represents one data-stack cell. Definitions need
-not be called. When complete analysis produces the declared output depth, its
-final positions receive the declared output names. This validates depth, not
+not be called. When analysis matches the declared output depth, unknown final
+positions receive output names; known numeric results retain their values. This validates depth, not
 value meaning or types. Symbolic names are separate from runtime LABEL identities.
 
 The supported subset includes integer literals, basic stack/arithmetic/comparison
-operations, earlier declared fixed contracts, and nested `if`/`else`/`then`.
-Branches must leave equal depths; different values at a joined position become
-`?`. Calls use declared contracts as assumptions, not proofs of callee correctness.
+operations, `?dup`, nested `if`/`else`/`then`, and standard `."` literals that
+preserve the data stack. Exact arithmetic propagates safe constants. Earlier
+documented bodies can be analyzed with caller arguments, while their own
+annotations remain independent. Unanalyzable callees may use declared contracts
+as explicit `contract assumed` states; matching names never prove unchanged values.
 
-Unsupported words, loops, recursion, value-dependent effects, non-data stacks,
-custom parsing, and recognized dictionary changes stop analysis with a notice.
-A known prefix may remain visible; later states and verified output names must
-not be fabricated. Insufficient documented inputs, output-depth mismatches, and
-incompatible branch depths produce warnings. Definitions without usable contracts
-have no symbolic states. In-file redefinitions shadow builtin rules.
+Known zero/nonzero values resolve `?dup`; unknown values retain whole-stack
+alternatives, written `[ 0 ] | [ n, n ]`. Copied cells share zero/nonzero facts.
+Conditions prune known branches, and later operations continue on each feasible
+path, including different depths. Constraint reasoning is partial; alternatives
+may overapproximate the combinations actually possible. Contracts support fixed inputs and fixed,
+`...`, or `|`-separated outputs. A fixed declaration warns when a possible output
+depth is not declared. Known constants must not be hidden by generic output names.
+
+An alternative that underflows or divides by known zero produces a warning and
+stops; safe continuations are marked `valid paths only`. Unknown effects instead
+produce `Effect unknown` notices and stop analysis without invented shapes.
+Unsupported loops, recursion, non-data stacks, custom parsing, and recognized
+dictionary changes remain conservative boundaries. Supported `."` strings must
+not tokenize their contents as code or inherit their native rule after a
+redefinition. Definitions without usable input contracts have no symbolic states.
+
+All views share the alternatives. Line and inline text show up to four distinct
+stacks, then summarize total alternatives and minimum/maximum depth; Inspect
+lists retained stacks. Internal exploration stops explicitly above 16 paths or
+16 levels of call/control nesting, rather than silently dropping feasible paths.
 
 `ForthStackAnalyze` performs one analysis without Python/Gforth, pauses ongoing
 execution, and sets status to `analyzed`. Run resumes execution. The `symbolic`
@@ -289,7 +305,10 @@ instrumentation, not guaranteed tracing of every executed primitive.
 - Lua presentation rejects runtime integers outside ±(2^53−1) to avoid rounding;
   full-width Gforth cells are not silently approximated.
 - Symbolic limits are 4 MiB, 50000 lexical tokens, 256 cells, bounded expressions,
-  and 64-byte stack-effect names. These are independent of runtime max_depth.
+  64-byte stack-effect names, 50000 abstract execution steps, 16 paths and 16
+  levels of nesting. Observation budgets additionally cap analysis at 10000
+  events, 100000 displayed cell snapshots and 4 MiB of snapshot text. These are
+  independent of runtime max_depth.
 - stdout/stderr are captured in memory; a dedicated program-output panel and
   preemptive bounded output capture are not implemented.
 - Stop terminates the supervisor and its direct Gforth child. Descendants started
@@ -315,7 +334,8 @@ lua/forth-stack/
   live.lua          per-buffer debounce and update lifecycle
   trace.lua         trace import, validation, source associations
   display.lua       runtime/inline annotations and Inspect
-  symbolic.lua      bounded source analysis and symbolic annotations
+  symbolic.lua      source/contracts and symbolic annotations
+  abstract.lua      bounded alternative paths, constants and call inference
   diagnostics.lua   source-linked runtime diagnostics
   health.lua        health checks
   paths.lua         installed runtime paths
@@ -345,7 +365,8 @@ Python 3, Gforth, and Neovim on PATH. Tests cover:
   resumption, Stop behavior, and explicit-command exceptions.
 - Cursor-token selection, symbolic/runtime priorities, duplicate suppression,
   one-shot requests, optional inline mode, and automatic-start defaults.
-- Symbolic contracts, permutations, branch joins, mismatches, unsupported
+- Symbolic contracts, permutations, alternative paths, constant propagation,
+  copied-cell conditions, inferred calls, print strings, mismatches, unsupported
   operations, source/dictionary boundaries, and resource-limit notices.
 - Call-site error diagnostics, partial observations, recovery, analysis without
   executing Forth, and preserving other plugins' diagnostics.
@@ -363,7 +384,7 @@ items, not claims about current behavior.
 | --- | --- | --- |
 | Near term | CI and compatibility matrix | Run the suite automatically on changes; verify supported Neovim/Gforth versions |
 | Near term | Observation-history navigation | Select earlier loop/call occurrences and distinguish invocation context |
-| Near term | Broader symbolic coverage | Add operations and selected loop/exit handling with explicit soundness boundaries and regression tests |
+| Near term | Broader symbolic coverage | Add further native operations and selected loop/exit handling with explicit soundness boundaries and regression tests |
 | Hardening | Performance/output/process limits | Profile large files/traces, bound capture earlier, evaluate descendant cleanup |
 | Hardening | Included-file workflow | Define dependency tracking, unsaved includes, and source validation across files |
 | Later | Wider value representation | Preserve full cell precision and explicitly supported floating/return stacks or typed displays |
