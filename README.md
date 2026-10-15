@@ -98,21 +98,19 @@ states shown.
 
 ## Label your values
 
-Use an ordinary Forth comment to label the top of the stack:
+Add `( LABEL: age )` after a value, then run `:ForthStackRun`.
+The comments on the right illustrate the stack annotations displayed by the
+plugin; you do not need to type them:
 
 ```forth
-: birthday 1+ ;
-: can-drive 18 >= ;
-
-17 ( LABEL: age )
-dup can-drive drop
-dup birthday
-can-drive
+17 ( LABEL: age )   \ [ age:17 ]  label age
+dup                \ [ age:17, age:17 ]  after dup
+1+                 \ [ age:17, age:18 ]  after 1+
+18 >=              \ [ age:17, -1 ]  after >=
 ```
 
-Run `:ForthStackRun`. You will see `age:17`; after `dup birthday`, the stack is
-`[ age:17, age:18 ]`. The final comparison leaves `[ age:17, -1 ]`: its result
-does not inherit `age`.
+`dup` copies the label, and `1+` keeps it as the value changes. The comparison
+produces an unlabeled result (`-1`, meaning true).
 
 Labels follow `dup`, `over`, `swap`, `rot`, `nip`, `tuck`, and `drop`. Increment
 and decrement preserve them, including `1+`, `1-`, `1 +`, and `1 -`. General
