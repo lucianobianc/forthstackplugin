@@ -1,7 +1,7 @@
 # forthstackplugin
 
 See your Forth program's stack next to the code in Neovim. Open a `.fs` file
-and values update as you type, without saving the file.
+and values update after you leave Insert mode, without saving the file.
 
 The plugin is under development. Live stack visualization, Gforth execution,
 and basic value labels are available.
@@ -82,7 +82,11 @@ Documented definitions show an independent symbolic stack, using the names in
 their stack effect. Real values from later calls never become symbolic inputs.
 
 Stacks appear next to observed operations, with the top on the right. The display
-then updates after a 350 ms pause in typing, including unsaved changes.
+updates after a 350 ms pause outside Insert/Replace mode, including unsaved
+changes. While you are typing in Insert/Replace mode, automatic execution,
+symbolic analysis, and inline updates are deferred. Leaving that mode schedules
+one update of the latest code. Edits still clear stale results immediately;
+explicit commands such as `:ForthStackRun` remain available.
 
 Use `:ForthStackStop` to pause. Run `:ForthStackRun` again to resume. If the code
 is incomplete, the plugin waits for the next edit and tries again without showing
@@ -132,7 +136,8 @@ Calling `can-drive` with an empty stack marks the call with a red **Stack
 underflow** diagnostic. Other execution failures also appear as Neovim
 diagnostics; use `:lua vim.diagnostic.open_float()` to read the full message.
 
-Diagnostics update after the typing pause and clear when the code is corrected.
+Automatic diagnostics update after leaving Insert/Replace mode and the configured
+delay, and clear when the code is corrected.
 Valid observations before a Forth error may remain visible, marked `before
 error`; they are not a complete execution result. `:ForthStackStatus` still
 shows full execution details.

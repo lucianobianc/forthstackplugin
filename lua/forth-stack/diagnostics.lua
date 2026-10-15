@@ -27,7 +27,7 @@ function M.failure(bufnr, trace)
   vim.diagnostic.set(M.namespace, bufnr, {{
     lnum = line, col = column, end_col = end_column, severity = vim.diagnostic.severity.ERROR,
     message = message, source = 'Forth Stack (runtime)',
-  }}, { virtual_text = true, underline = true, signs = true, update_in_insert = true })
+  }}, { virtual_text = true, underline = true, signs = true, update_in_insert = false })
 end
 
 return M

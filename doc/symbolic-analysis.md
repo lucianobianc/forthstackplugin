@@ -73,7 +73,9 @@ modeled reliably. An annotation is not a general correctness guarantee.
 
 Limits: 4 MiB of source, 50,000 lexical tokens, 256 symbolic cells, and bounded
 expression text. Limits and incomplete definitions produce notices. Symbolic
-analysis follows the existing update delay and is available even when the
+analysis follows the existing update delay outside Insert/Replace mode. It is
+deferred while typing, along with automatic execution and inline updates, and is
+available even when the
 subsequent runtime launch fails dependency validation.
 
 ## Diagnostics and failed executions
@@ -98,6 +100,7 @@ can be shown with `before error`. No state is invented for the failed operation,
 and the status remains `error`. Partial observations are also marked in inline
 and Inspect views. Timeout, process, malformed-protocol, and incomplete-result
 failures do not expose partial runtime states. Failed JSON imports are still
-rejected. A fresh edit invalidates old observations and diagnostics; the next
+rejected. A fresh edit invalidates old observations and diagnostics, including while in
+Insert/Replace mode. New automatic diagnostics wait until that mode ends; the next
 successful run clears the execution error. Unrelated plugins' diagnostics are
 never reset.

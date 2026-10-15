@@ -262,7 +262,7 @@ function M.render(bufnr, analysis, runtime)
     end
   end
   vim.diagnostic.set(M.diagnostics, bufnr, analysis.diagnostics, {
-    virtual_text = true, underline = true, signs = true, update_in_insert = true,
+    virtual_text = true, underline = true, signs = true, update_in_insert = false,
   })
 end
 

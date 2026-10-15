@@ -35,9 +35,10 @@ using the real interpreter does not imply every operation is observable.
 
 ### 2.1 Defaults and execution lifecycle
 
-Opening a named `.fs` file starts file-mode tracing by default. After a 350 ms
-pause in editing, including Insert mode, the plugin reruns the current unsaved
-snapshot. Included files are read from disk. The user file is never saved by the
+Opening a named `.fs` file starts file-mode tracing by default. Automatic work
+is deferred in Insert/Replace mode. After edits outside that mode, or after
+leaving it with pending changes/work, a 350 ms debounce schedules the latest
+unsaved snapshot. Included files are read from disk. The user file is never saved by the
 plugin; a new buffer may run if its name belongs to an existing directory.
 
 - `ForthStackRun` executes the file and enables updates for that buffer.
@@ -52,8 +53,17 @@ plugin; a new buffer may run if its name belongs to an existing directory.
   independently disables reruns after edits; an initial automatic run may still
   occur when auto_start is enabled.
 
+Entering Insert/Replace mode suspends pending automatic timers and cancels
+automatic execution in flight; leaving reschedules one latest update. Entering
+and leaving without edits or pending work must not rerun the program. Stop/Clear
+must cancel deferred work too. Explicit commands remain available in Insert mode;
+they are not treated as automatic updates. One-time automatic startup with
+`auto_update = false` follows the same deferral rule.
+
 Every runtime update repeats the program's effects, including I/O. Each edit
-invalidates old observations and cancels the previous run. Filename, changedtick,
+invalidates old observations and cancels the previous run, including during
+Insert mode. Automatic symbolic/inline updates and new diagnostics are also
+deferred until editing mode ends. Filename, changedtick,
 and run-identity checks reject late results. Automatic failures do not generate
 repeated notification popups while typing.
 
@@ -247,7 +257,7 @@ installation paths are documented in the README.
 | `auto_start` | `true` | Automatic startup for `.fs` files |
 | `inline` | `false` | Initial continuous-inline preference |
 | `auto_update` | `true` | Updates after editing an armed buffer |
-| `debounce_ms` | `350` | Integer typing delay, 1–5000 ms |
+| `debounce_ms` | `350` | Integer automatic update delay outside Insert/Replace mode, 1–5000 ms |
 
 No global or buffer-local keybindings are installed by the plugin. Users may
 configure them normally; suggested Forth-local mappings are `<localleader>s`
@@ -330,7 +340,9 @@ Python 3, Gforth, and Neovim on PATH. Tests cover:
   limits, timeouts, unsaved snapshots, and execution failures.
 - Identity/copy provenance, labels, conservative opaque-operation behavior.
 - Native installation, explicit setup, demo, health, imports, asynchronous
-  execution, cancellation, debounce, reloads, and stale-result rejection.
+  execution, cancellation, debounce, reloads, and stale-result rejection. Real
+  Insert-mode tests verify deferred updates, pending/in-flight cancellation,
+  resumption, Stop behavior, and explicit-command exceptions.
 - Cursor-token selection, symbolic/runtime priorities, duplicate suppression,
   one-shot requests, optional inline mode, and automatic-start defaults.
 - Symbolic contracts, permutations, branch joins, mismatches, unsupported

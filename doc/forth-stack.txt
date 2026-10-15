@@ -43,8 +43,11 @@ Inspect prefer symbolic states where available; other recorded body observations
 are marked "last call". Set symbolic=false to disable automatic analysis.
 Uncalled definitions do not execute their bodies.
 
-After Run, stacks update after 350 ms without new edits, including in Insert
-mode and without saving. Edits cancel the previous run. Automatic errors are
+After Run, stacks update after 350 ms without new edits outside Insert/Replace
+mode, without saving. During Insert/Replace, automatic execution, symbolic and
+inline updates are deferred; leaving schedules one update if work is pending.
+Entering cancels pending automatic timers and automatic runs in flight. Entering
+and leaving alone does not rerun code. Explicit commands still work. Edits cancel the previous run. Automatic errors are
 available in Status without repeated notifications while typing.
 Stop/Clear pause; Run resumes. Renaming/closing also disables automatic updates.
 No command writes the buffer or imposes global keymaps.

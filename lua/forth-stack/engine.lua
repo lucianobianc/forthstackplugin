@@ -14,6 +14,13 @@ function M.stop(bufnr)
   return true
 end
 
+function M.pause_automatic(bufnr)
+  local run = active[bufnr]
+  if not run or not run.automatic then return end
+  M.stop(bufnr)
+  return { entry = run.entry }
+end
+
 function M.running(bufnr) return active[bufnr] ~= nil end
 
 function M.run(bufnr, entry, on_success, opts)
@@ -35,7 +42,8 @@ function M.run(bufnr, entry, on_success, opts)
   check(vim.fn.filereadable(tracer) == 1, 'Tracer not found; reinstall the complete plugin')
   M.stop(bufnr)
   require('forth-stack.diagnostics').clear(bufnr)
-  local run = { tick = vim.api.nvim_buf_get_changedtick(bufnr), filename = filename }
+  local run = { tick = vim.api.nvim_buf_get_changedtick(bufnr), filename = filename,
+    entry = entry, automatic = opts.automatic == true }
   active[bufnr] = run
   local command = { vim.fn.exepath(config.python), tracer,
     '--gforth', vim.fn.exepath(config.gforth),
@@ -47,6 +55,11 @@ function M.run(bufnr, entry, on_success, opts)
   local ok, process = pcall(vim.system, command, { text = true, stdin = snapshot }, function(result)
     vim.schedule(function()
       if active[bufnr] ~= run then return end
+      if vim.api.nvim_buf_is_valid(bufnr) and run.automatic
+        and require('forth-stack.live').is_inserting(bufnr) then
+        require('forth-stack.live').enter(bufnr)
+        return
+      end
       active[bufnr] = nil
       if not vim.api.nvim_buf_is_valid(bufnr)
         or vim.api.nvim_buf_get_changedtick(bufnr) ~= run.tick

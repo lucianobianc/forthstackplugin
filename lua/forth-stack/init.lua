@@ -149,6 +149,10 @@ end
 
 function M.cursor(once)
   local bufnr = vim.api.nvim_get_current_buf()
+  if not once and live.is_inserting(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, display.cursor_namespace, 0, -1)
+    return
+  end
   local state = states[bufnr]
   if state or analyses[bufnr] then
     local enabled = inline[bufnr]
@@ -196,22 +200,8 @@ function M.auto_start(bufnr)
   auto_seen[bufnr] = true
   if live.entry(bufnr) ~= nil then return end
   watch(bufnr)
-  if require('forth-stack.config').options.auto_update then
-    live.enable(bufnr, '')
-    live.changed(bufnr)
-  else
-    local ticket = {}
-    auto_seen[bufnr] = ticket
-    vim.schedule(function()
-      if auto_seen[bufnr] ~= ticket or not vim.api.nvim_buf_is_valid(bufnr)
-        or not require('forth-stack.config').options.auto_start then return end
-      local ok, err = pcall(M._refresh, '', bufnr, { silent = true })
-      if not ok then
-        vim.b[bufnr].forth_stack_status = 'error'
-        vim.b[bufnr].forth_stack_error = tostring(err)
-      end
-    end)
-  end
+  live.enable(bufnr, '', not require('forth-stack.config').options.auto_update)
+  live.changed(bufnr)
 end
 
 function M.start_auto()
@@ -346,6 +336,16 @@ vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter', 'WinEnt
     M.auto_start(args.buf)
     M.cursor()
   end,
+})
+
+vim.api.nvim_create_autocmd('InsertEnter', {
+  group = 'ForthStackSource',
+  callback = function(args) live.enter(args.buf); M.cursor() end,
+})
+
+vim.api.nvim_create_autocmd('InsertLeave', {
+  group = 'ForthStackSource',
+  callback = function(args) live.leave(args.buf) end,
 })
 
 vim.api.nvim_create_autocmd('BufReadPost', {

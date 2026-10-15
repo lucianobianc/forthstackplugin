@@ -146,9 +146,13 @@ limited to 4 MiB.
 
 By default, opening a `.fs` file starts tracing and automatic updates. Run also
 enables updates for its buffer. Edits,
-including Insert-mode changes, invalidate marks, cancel the current process,
-and restart a 350 ms timer. The timer captures the latest buffer; a burst of edits
-produces one execution. Run identity, filename, and changedtick checks discard
+including Insert-mode changes, invalidate marks and cancel the current process.
+Automatic execution/analysis and inline updates are deferred during Insert/Replace
+mode. Entering suspends pending timers and cancels automatic work in flight;
+leaving reschedules one update if work is pending. Outside editing mode, changes
+restart a 350 ms timer. The timer captures the latest buffer; a burst of edits
+produces one execution. Enter/leave without pending work does not execute again.
+Explicit commands still work; one-time automatic startup obeys the deferral rule. Run identity, filename, and changedtick checks discard
 late responses. Undo/redo and reloading also participate. Set `auto_start = false`
 to require a manual run; `:ForthStackAutoToggle` pauses/resumes automatic `.fs`
 tracing for the session. Stop/Clear stay paused when a buffer is reentered or

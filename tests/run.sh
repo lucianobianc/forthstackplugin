@@ -32,3 +32,4 @@ nvim --headless -u NONE -i NONE -l tests/test_modes.lua
 nvim --headless -u NONE -i NONE -l tests/test_symbolic.lua
 nvim --headless -u NONE -i NONE -l tests/test_analysis_live.lua
 nvim --headless -u NONE -i NONE -l tests/test_inline_dedup.lua
+nvim --headless -n -u NONE -i NONE -c 'lua dofile("tests/test_insert_mode.lua")'
