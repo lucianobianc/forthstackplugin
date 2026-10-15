@@ -1,0 +1,559 @@
+{
+  "format_version": 1,
+  "status": "ok",
+  "complete": true,
+  "source": "../../examples/compiled.fs",
+  "entry": "example",
+  "forth_code": 0,
+  "process_returncode": 0,
+  "diagnostic": null,
+  "events": [
+    {
+      "seq": 0,
+      "site": 0,
+      "phase": "entry",
+      "source": null,
+      "stack": []
+    },
+    {
+      "seq": 1,
+      "site": 5,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 7,
+        "column_bytes": 3,
+        "token": "15",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": []
+    },
+    {
+      "seq": 2,
+      "site": 5,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 7,
+        "column_bytes": 3,
+        "token": "15",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        15
+      ]
+    },
+    {
+      "seq": 3,
+      "site": 6,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 8,
+        "column_bytes": 3,
+        "token": "birthday",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        15
+      ]
+    },
+    {
+      "seq": 4,
+      "site": 2,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 3,
+        "column_bytes": 3,
+        "token": "1+",
+        "word": "birthday",
+        "coverage": "probe"
+      },
+      "stack": [
+        15
+      ]
+    },
+    {
+      "seq": 5,
+      "site": 2,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 3,
+        "column_bytes": 3,
+        "token": "1+",
+        "word": "birthday",
+        "coverage": "probe"
+      },
+      "stack": [
+        16
+      ]
+    },
+    {
+      "seq": 6,
+      "site": 6,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 8,
+        "column_bytes": 3,
+        "token": "birthday",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16
+      ]
+    },
+    {
+      "seq": 7,
+      "site": 7,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 3,
+        "token": "dup",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16
+      ]
+    },
+    {
+      "seq": 8,
+      "site": 7,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 3,
+        "token": "dup",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        16
+      ]
+    },
+    {
+      "seq": 9,
+      "site": 8,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 7,
+        "token": "18",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        16
+      ]
+    },
+    {
+      "seq": 10,
+      "site": 8,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 7,
+        "token": "18",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        16,
+        18
+      ]
+    },
+    {
+      "seq": 11,
+      "site": 9,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 10,
+        "token": ">=",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        16,
+        18
+      ]
+    },
+    {
+      "seq": 12,
+      "site": 9,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 9,
+        "column_bytes": 10,
+        "token": ">=",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        0
+      ]
+    },
+    {
+      "seq": 13,
+      "site": 14,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 12,
+        "column_bytes": 5,
+        "token": "2",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16
+      ]
+    },
+    {
+      "seq": 14,
+      "site": 14,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 12,
+        "column_bytes": 5,
+        "token": "2",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        2
+      ]
+    },
+    {
+      "seq": 15,
+      "site": 15,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 12,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        16,
+        2
+      ]
+    },
+    {
+      "seq": 16,
+      "site": 15,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 12,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18
+      ]
+    },
+    {
+      "seq": 17,
+      "site": 17,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 14,
+        "column_bytes": 3,
+        "token": "3",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18
+      ]
+    },
+    {
+      "seq": 18,
+      "site": 17,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 14,
+        "column_bytes": 3,
+        "token": "3",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        3
+      ]
+    },
+    {
+      "seq": 19,
+      "site": 18,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 14,
+        "column_bytes": 5,
+        "token": "0",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        3
+      ]
+    },
+    {
+      "seq": 20,
+      "site": 18,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 14,
+        "column_bytes": 5,
+        "token": "0",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        3,
+        0
+      ]
+    },
+    {
+      "seq": 21,
+      "site": 20,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18
+      ]
+    },
+    {
+      "seq": 22,
+      "site": 20,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        0
+      ]
+    },
+    {
+      "seq": 23,
+      "site": 21,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        0
+      ]
+    },
+    {
+      "seq": 24,
+      "site": 21,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18
+      ]
+    },
+    {
+      "seq": 25,
+      "site": 20,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18
+      ]
+    },
+    {
+      "seq": 26,
+      "site": 20,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        1
+      ]
+    },
+    {
+      "seq": 27,
+      "site": 21,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        18,
+        1
+      ]
+    },
+    {
+      "seq": 28,
+      "site": 21,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        19
+      ]
+    },
+    {
+      "seq": 29,
+      "site": 20,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        19
+      ]
+    },
+    {
+      "seq": 30,
+      "site": 20,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 5,
+        "token": "i",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        19,
+        2
+      ]
+    },
+    {
+      "seq": 31,
+      "site": 21,
+      "phase": "before",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        19,
+        2
+      ]
+    },
+    {
+      "seq": 32,
+      "site": 21,
+      "phase": "after",
+      "source": {
+        "file": "../../examples/compiled.fs",
+        "line": 15,
+        "column_bytes": 7,
+        "token": "+",
+        "word": "example",
+        "coverage": "probe"
+      },
+      "stack": [
+        21
+      ]
+    },
+    {
+      "seq": 33,
+      "site": 0,
+      "phase": "return",
+      "source": null,
+      "stack": [
+        21
+      ]
+    }
+  ],
+  "stdout": "",
+  "stderr": ""
+}
