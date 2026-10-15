@@ -1,7 +1,7 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 local plugin = require('forth-stack')
 local display = require('forth-stack.display')
-plugin.setup()
+plugin.setup({ inline = true, auto_start = false })
 vim.cmd.enew()
 local buf = vim.api.nvim_get_current_buf()
 vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. '.fs')

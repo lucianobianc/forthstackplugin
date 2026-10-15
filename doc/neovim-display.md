@@ -144,16 +144,20 @@ or not yet exist on disk, provided it has a name in an existing directory. Other
 included files are read from disk, not modified buffers. Source snapshots are
 limited to 4 MiB.
 
-By default, Run enables automatic updates **only for that buffer**. Edits,
+By default, opening a `.fs` file starts tracing and automatic updates. Run also
+enables updates for its buffer. Edits,
 including Insert-mode changes, invalidate marks, cancel the current process,
 and restart a 350 ms timer. The timer captures the latest buffer; a burst of edits
 produces one execution. Run identity, filename, and changedtick checks discard
-late responses. Undo/redo and reloading also participate. Merely opening a file
-does not execute it.
+late responses. Undo/redo and reloading also participate. Set `auto_start = false`
+to require a manual run; `:ForthStackAutoToggle` pauses/resumes automatic `.fs`
+tracing for the session. Stop/Clear stay paused when a buffer is reentered or
+reloaded.
 
 `:ForthStackStop` pauses timers/execution; Run resumes or changes the entry word.
 Clear, loading valid JSON, renaming, or closing also disable tracking. Exiting
-Neovim terminates active processes. `auto_update = false` keeps execution manual;
+Neovim terminates active processes. `auto_update = false` disables updates after
+edits, while `auto_start` independently controls the initial run;
 `debounce_ms` sets a 1–5000 ms delay. Incomplete code records an error without
 repeated notifications and is reevaluated after the next edit; `:ForthStackStatus`
 shows diagnostics. `vim.b.forth_stack_status` and `vim.b.forth_stack_error` expose
@@ -177,8 +181,8 @@ to the received result; it does not preemptively bound collection memory. Do not
 use this prototype to execute untrusted programs.
 
 `setup()` accepts `python`, `gforth`, `timeout`, `max_events`, `max_depth`,
-`auto_update`, and `debounce_ms`. Defaults are `python3`, `gforth`, 5 seconds,
-10,000 events, 256 cells, true, and 350 ms. Maximum values are 60 seconds, 10,000
+`auto_start`, `inline`, `auto_update`, and `debounce_ms`. Defaults are `python3`,
+`gforth`, 5 seconds, 10,000 events, 256 cells, true, false, true, and 350 ms. Maximum values are 60 seconds, 10,000
 events, 256 cells, and 5000 ms. Options are validated before applying changes;
 repeated setup re-registers commands without duplicates. Executable paths,
 including those with spaces, are resolved before starting the supervisor.
@@ -248,3 +252,19 @@ use the suffix `label age`. Inspection also lists IDs and copy origins. Imported
 label traces must match the current annotation text. Existing version 1 traces
 remain supported without identity data. See [labels.md](labels.md) for rules,
 syntax, conservative barriers, and limitations.
+
+
+### Optional inline cursor display
+
+Inline display defaults to off. `:ForthStackInlineToggle` switches continuous
+cursor display for the current buffer; `inline = true` enables it by default.
+`:ForthStackInline` shows one observation until the cursor moves. If no trace is
+available, it executes the file once without enabling ongoing updates.
+
+Selection uses the cursor's byte column and the traced token's byte span. Inline
+virtual text appears immediately after the token, leaving source text untouched.
+The existing end-of-line observation remains visible. `:ForthStackInspect` uses
+the selected token, with a line-level fallback. Repeated executions select the
+most recent observation for that position; whitespace and unexecuted tokens have
+no inline state. Annotations are buffer-scoped and shared between windows.
+No keybindings are installed.

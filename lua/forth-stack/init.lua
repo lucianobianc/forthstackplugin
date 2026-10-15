@@ -1,6 +1,7 @@
 local M = {}
 local display = require('forth-stack.display')
 local states, attached, reloads = {}, {}, {}
+local auto_seen, inline, read_names = {}, {}, {}
 local engine = require('forth-stack.engine')
 local live = require('forth-stack.live')
 
@@ -18,6 +19,7 @@ function M.clear(bufnr)
   bufnr = buffer(bufnr)
   reloads[bufnr] = nil
   live.disable(bufnr)
+  auto_seen[bufnr] = true
   engine.stop(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) then
     vim.b[bufnr].forth_stack_status = 'inactive'
@@ -76,6 +78,7 @@ function M.show(trace, bufnr, base)
   engine.stop(bufnr)
   watch(bufnr)
   close_inspect(states[bufnr])
+  auto_seen[bufnr] = true
   states[bufnr] = { lines = lines, visible = true }
   display.render(bufnr, lines)
   if bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
@@ -99,12 +102,81 @@ function M.toggle(bufnr)
   return state.visible
 end
 
-function M.cursor()
+function M.cursor(once)
   local bufnr = vim.api.nvim_get_current_buf()
   local state = states[bufnr]
-  if state and state.visible then
-    display.cursor(bufnr, state.lines, vim.api.nvim_win_get_cursor(0))
+  if state then
+    local enabled = inline[bufnr]
+    if enabled == nil then enabled = require('forth-stack.config').options.inline end
+    display.cursor(bufnr, (once or (state.visible and enabled)) and state.lines or {}, vim.api.nvim_win_get_cursor(0))
   end
+end
+
+function M.inline_once()
+  local bufnr = buffer()
+  if states[bufnr] then M.cursor(true); return end
+  -- A one-shot inspection also works when automatic tracing is disabled.
+  auto_seen[bufnr] = true
+  watch(bufnr)
+  local entry = live.entry(bufnr)
+  if entry ~= nil then live.enable(bufnr, entry) end -- cancel a pending debounce
+  engine.run(bufnr, entry or '', function(trace, target)
+    M.show(trace, target, vim.fn.getcwd())
+    if target == vim.api.nvim_get_current_buf() then M.cursor(true) end
+  end)
+end
+
+function M.inline_toggle()
+  local bufnr = buffer()
+  local enabled = inline[bufnr]
+  if enabled == nil then enabled = require('forth-stack.config').options.inline end
+  inline[bufnr] = not enabled
+  M.cursor()
+  return inline[bufnr]
+end
+
+function M.auto_start(bufnr)
+  bufnr = buffer(bufnr)
+  if not require('forth-stack.config').options.auto_start or auto_seen[bufnr]
+    or not vim.api.nvim_buf_is_loaded(bufnr) or vim.bo[bufnr].buftype ~= ''
+    or not vim.api.nvim_buf_get_name(bufnr):match('%.fs$') then return end
+  auto_seen[bufnr] = true
+  if live.entry(bufnr) ~= nil then return end
+  watch(bufnr)
+  if require('forth-stack.config').options.auto_update then
+    live.enable(bufnr, '')
+    live.changed(bufnr)
+  else
+    local ticket = {}
+    auto_seen[bufnr] = ticket
+    vim.schedule(function()
+      if auto_seen[bufnr] ~= ticket or not vim.api.nvim_buf_is_valid(bufnr)
+        or not require('forth-stack.config').options.auto_start then return end
+      local ok, err = pcall(M._refresh, '', bufnr, { silent = true })
+      if not ok then
+        vim.b[bufnr].forth_stack_status = 'error'
+        vim.b[bufnr].forth_stack_error = tostring(err)
+      end
+    end)
+  end
+end
+
+function M.start_auto()
+  vim.schedule(function()
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do M.auto_start(bufnr) end
+  end)
+end
+
+function M.auto_toggle()
+  local config = require('forth-stack.config').options
+  config.auto_start = not config.auto_start
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(bufnr):match('%.fs$') then
+      auto_seen[bufnr] = nil
+      if not config.auto_start then M.stop(bufnr) else M.auto_start(bufnr) end
+    end
+  end
+  return config.auto_start
 end
 
 function M.inspect(bufnr, line)
@@ -126,6 +198,7 @@ end
 function M.setup(opts)
   require('forth-stack.config').setup(opts)
   require('forth-stack.commands').register()
+  M.start_auto()
 end
 
 function M.demo()
@@ -149,6 +222,7 @@ function M.run(entry, bufnr)
   entry = entry or ''
   bufnr = buffer(bufnr)
   reloads[bufnr] = nil
+  auto_seen[bufnr] = true
   M._refresh(entry, bufnr)
   live.enable(bufnr, entry)
 end
@@ -157,6 +231,7 @@ function M.stop(bufnr)
   bufnr = buffer(bufnr)
   reloads[bufnr] = nil
   live.disable(bufnr)
+  auto_seen[bufnr] = true
   vim.b[bufnr].forth_stack_status = 'paused'
   return engine.stop(bufnr)
 end
@@ -201,7 +276,10 @@ vim.api.nvim_create_autocmd('BufFilePost', {
 
 vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter', 'WinEnter' }, {
   group = 'ForthStackSource',
-  callback = function() M.cursor() end,
+  callback = function(args)
+    M.auto_start(args.buf)
+    M.cursor()
+  end,
 })
 
 vim.api.nvim_create_autocmd('BufReadPost', {
@@ -213,6 +291,16 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     states[args.buf] = nil
     display.clear(args.buf)
     live.changed(args.buf)
+  end,
+})
+
+vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+  group = 'ForthStackSource',
+  callback = function(args)
+    local name = vim.api.nvim_buf_get_name(args.buf)
+    if read_names[args.buf] ~= name then auto_seen[args.buf] = nil end
+    read_names[args.buf] = name
+    M.auto_start(args.buf)
   end,
 })
 

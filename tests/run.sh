@@ -28,3 +28,4 @@ nvim --headless -u NONE -i NONE -l tests/test_live.lua
 nvim --headless -u NONE -i NONE -l tests/test_filemode.lua
 nvim --headless -u NONE -i NONE -l tests/test_labels.lua
 nvim --headless -u NONE -i NONE -l tests/test_cursor.lua
+nvim --headless -u NONE -i NONE -l tests/test_modes.lua

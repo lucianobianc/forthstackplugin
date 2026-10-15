@@ -9,8 +9,8 @@ With start packages, commands load automatically without setup.
 The demo does not need Python or Gforth: >
     :ForthStackDemo
 <
-To run your code, install Python 3 and Gforth on PATH, open your Forth file,
-and run: >
+Install Python 3 and Gforth on PATH. Opening a .fs file starts tracing
+automatically. To start or resume a run manually: >
     :ForthStackRun
 <
 HEALTH CHECK                                              *forth-stack-health*
@@ -28,7 +28,10 @@ COMMANDS                                                  *forth-stack-commands*
                          Use q to close or :write /tmp/forth-stack-error.txt
                          to save the message.
 :ForthStackLoad {json}    Loads an external version 1 or 2 JSON trace.
-:ForthStackInspect        Inspects the latest observation on the cursor line.
+:ForthStackInspect        Inspects the cursor token, falling back to its line.
+:ForthStackInline         Shows the cursor token stack until the cursor moves.
+:ForthStackInlineToggle   Toggles continuous inline display for this buffer.
+:ForthStackAutoToggle     Toggles automatic .fs tracing for the session.
 :ForthStackToggle         Hides or shows the loaded data.
 :ForthStackClear          Clears data and cancels the current buffer's run.
 
@@ -49,6 +52,8 @@ CONFIGURATION                                             *forth-stack-setup*
       timeout = 5,
       max_events = 10000,
       max_depth = 256,
+      auto_start = true,
+      inline = false,
       auto_update = true,
       debounce_ms = 350,
     })
@@ -120,12 +125,21 @@ repository for installation, protocol details, and the full investigation.
 
 CURSOR STACKS
 
-After :ForthStackRun, move over a traced token to display its stack inline.
-The end-of-line annotation continues to show the final observation on the line.
-:ForthStackInspect selects the token under the cursor, falling back to the line
-when no traced token is selected. Inline text does not modify the source.
-Repeated tokens show their most recent execution, not an execution history.
-Unexecuted tokens and whitespace have no inline observation. Cursor annotations
-are shared between windows showing the same buffer.
+Inline display defaults to off. :ForthStackInline shows the cursor token's stack
+until the cursor moves. If no trace exists, it runs the file once without arming
+updates. :ForthStackInlineToggle enables or disables cursor-driven inline stacks
+in the current buffer. Set inline=true in setup() to enable it by default.
+:ForthStackInspect selects the token under the cursor, falling back to the line.
+Repeated tokens show their most recent execution; unexecuted tokens and whitespace
+have no inline stack. Cursor annotations are shared between windows showing the
+same buffer. Inline annotations never modify the source. No keys are mapped.
+
+AUTOMATIC START
+
+Opening a .fs file starts tracing by default, including updates after edits.
+:ForthStackAutoToggle switches this behavior off/on for the session, pausing or
+resuming .fs buffers. Set auto_start=false in setup() to start only on command.
+:ForthStackStop pauses the current buffer until :ForthStackRun resumes it.
+The separate auto_update=false option disables updates after edits.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

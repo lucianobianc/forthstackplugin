@@ -1,7 +1,7 @@
 # forthstackplugin
 
-See your Forth program's stack next to the code in Neovim. Once you start a run,
-values update as you type, without saving the file.
+See your Forth program's stack next to the code in Neovim. Open a `.fs` file
+and values update as you type, without saving the file.
 
 The plugin is under development. Live stack visualization, Gforth execution,
 and basic value labels are available.
@@ -71,7 +71,7 @@ Open a Forth file, such as `example.fs`:
 birthday
 ```
 
-Run this once, without specifying a word:
+Tracing starts automatically for `.fs` files. To start or resume it manually:
 
 ```vim
 :ForthStackRun
@@ -98,17 +98,43 @@ states shown.
 
 ## Explore a line with the cursor
 
-After `:ForthStackRun`, move the cursor over a number or word to see the stack
-immediately after that token. It appears inline, between tokens; the end of the
-line still shows its final stack. Nothing is inserted into your source.
+Inline display is **off by default**. Place the cursor over a number or word
+and run `:ForthStackInline` to show its stack once. It disappears when you move
+the cursor. With automatic tracing off, this command runs the file once if no
+trace is available.
+
+Use `:ForthStackInlineToggle` to keep inline display on as you move through the
+current buffer; run it again to turn it off. The end of each line still shows
+its final stack. Nothing is inserted into your source.
 
 For `10 20 +`, the cursor reveals `[ 10 ]` over `10`, `[ 10, 20 ]` over `20`,
 and `[ 30 ]` over `+`. `:ForthStackInspect` also uses the token under the cursor.
 
-This shows recorded execution, so unexecuted tokens have no inline stack.
-For loops or repeated calls, it shows the most recent execution of that token.
-Whitespace has no inline annotation. Cursor annotations are shared between
-windows displaying the same buffer.
+This shows recorded execution. Unexecuted tokens and whitespace have no inline
+stack; loops and repeated calls show the most recent execution of that token.
+Cursor annotations are shared between windows displaying the same buffer.
+
+## Choose automatic behavior
+
+Automatic tracing of `.fs` files is **on by default**. Use
+`:ForthStackAutoToggle` to switch it off or on for the session. `:ForthStackStop`
+pauses only the current buffer; `:ForthStackRun` resumes it.
+
+To change the defaults, set these options in your lazy.nvim plugin entry:
+
+```lua
+opts = {
+  auto_start = false, -- require a manual run instead of starting on .fs files
+  inline = false,     -- keep cursor-driven inline display off
+},
+```
+
+Without a plugin manager, use `require('forth-stack').setup({ auto_start = false })`
+in your `init.lua`. The existing `auto_update = false` option disables updates
+after edits, even after a manual run.
+
+No keybindings are assigned. You can use the commands directly or map them to
+keys of your choice.
 
 ## Label your values
 
@@ -141,6 +167,9 @@ See [label rules and limitations](doc/labels.md) and `examples/labels.fs`.
 | --- | --- |
 | `:ForthStackDemo` | Opens the demo |
 | `:ForthStackRun` | Runs the file and follows edits |
+| `:ForthStackAutoToggle` | Toggles automatic `.fs` tracing for the session |
+| `:ForthStackInline` | Shows the cursor token stack once |
+| `:ForthStackInlineToggle` | Toggles inline stacks in this buffer |
 | `:ForthStackRun word` | Loads the file and also calls a specific word |
 | `:ForthStackStop` | Pauses automatic updates |
 | `:ForthStackInspect` | Shows stack details for the cursor line |

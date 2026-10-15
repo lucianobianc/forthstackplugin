@@ -5,3 +5,4 @@ if vim.fn.has('nvim-0.10') ~= 1 then
 end
 vim.g.loaded_forth_stack = true
 require('forth-stack.commands').register()
+require('forth-stack').start_auto()
