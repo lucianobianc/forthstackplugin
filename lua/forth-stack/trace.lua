@@ -64,6 +64,7 @@ function M.lines(trace, bufnr, base)
         assert(integer(source.line, 1) and source.line <= #contents, 'Line outside the buffer')
         assert(integer(source.column_bytes, 1), 'Invalid column')
         assert(type(source.token) == 'string' and source.token ~= '', 'Missing token')
+        assert(source.word == nil or type(source.word) == 'string', 'Invalid source word')
         local text = contents[source.line]
         assert(text:sub(source.column_bytes, source.column_bytes + #source.token - 1) == source.token,
           'Source differs from the trace; generate a new trace')
@@ -75,6 +76,7 @@ function M.lines(trace, bufnr, base)
           lines[source.line] = lines[source.line] or {}
           table.insert(lines[source.line], {
             seq = event.seq, token = source.token, stack = stack,
+            compiled = source.word ~= nil and source.word ~= '<top-level>',
             column_bytes = source.column_bytes, elements = elements, phase = event.phase,
             label = event.phase == 'label' and elements[#elements].label or nil,
           })

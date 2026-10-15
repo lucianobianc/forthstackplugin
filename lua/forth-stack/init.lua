@@ -79,8 +79,8 @@ function M.show(trace, bufnr, base)
   watch(bufnr)
   close_inspect(states[bufnr])
   auto_seen[bufnr] = true
-  states[bufnr] = { lines = lines, visible = true }
-  display.render(bufnr, lines)
+  states[bufnr] = { lines = lines, visible = true, entry = trace.entry }
+  display.render(bufnr, lines, trace.entry)
   if bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
 end
 
@@ -97,7 +97,7 @@ function M.toggle(bufnr)
   if not state then return false end
   close_inspect(state)
   state.visible = not state.visible
-  if state.visible then display.render(bufnr, state.lines) else display.clear(bufnr) end
+  if state.visible then display.render(bufnr, state.lines, state.entry) else display.clear(bufnr) end
   if state.visible and bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
   return state.visible
 end

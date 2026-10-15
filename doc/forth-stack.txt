@@ -35,7 +35,10 @@ COMMANDS                                                  *forth-stack-commands*
 :ForthStackToggle         Hides or shows the loaded data.
 :ForthStackClear          Clears data and cancels the current buffer's run.
 
-Top-level literals and calls outside definitions also show their stack.
+In file mode, end-of-line stacks follow top-level literals and calls. Definition
+bodies stay unannotated; declaring a word does not execute it. Inline display and
+Inspect can still reveal a body observation, marked "last call". An explicit
+:ForthStackRun word enables body annotations too, marked "last call".
 Uncalled definitions do not execute their bodies.
 
 After Run, stacks update after 350 ms without new edits, including in Insert

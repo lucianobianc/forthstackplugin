@@ -268,3 +268,18 @@ the selected token, with a line-level fallback. Repeated executions select the
 most recent observation for that position; whitespace and unexecuted tokens have
 no inline state. Annotations are buffer-scoped and shared between windows.
 No keybindings are installed.
+
+
+### Definition bodies and source order
+
+In file mode (`:ForthStackRun` without a word, including automatic runs),
+end-of-line annotations use only top-level observations. Runtime events inside
+compiled words remain available for inline display and Inspect, marked `last
+call`; they are not projected onto definition lines as if they happened when the
+word was declared. A line containing both top-level code and a definition uses
+its latest top-level observation, even if a later call executes its body.
+
+Explicit `:ForthStackRun word` enables body annotations for debugging, with a
+`last call` marker. Selection uses the existing source word metadata from Gforth,
+not a text scan for colons or semicolons. Legacy traces without source word
+metadata retain their existing display behavior.

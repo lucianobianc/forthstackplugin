@@ -77,8 +77,10 @@ Tracing starts automatically for `.fs` files. To start or resume it manually:
 :ForthStackRun
 ```
 
-The `16` line shows `[ 16 ]`, and `birthday` shows `[ 17 ]`. The plugin tracks
-both calls outside definitions and operations inside them.
+The `16` line shows `[ 16 ]`, and the call to `birthday` shows `[ 17 ]`.
+Definition lines stay unannotated: their bodies execute only when called.
+To explore an operation inside a definition, use inline display or
+`:ForthStackInspect`; its recorded state is marked `last call`.
 
 Stacks appear next to observed operations, with the top on the right. The display
 then updates after a 350 ms pause in typing, including unsaved changes.
@@ -89,7 +91,8 @@ a warning on every keystroke.
 
 To call a specific word after loading the file, use `:ForthStackRun example`.
 Without an argument, only the code in the file runs; uncalled definitions do not
-execute their bodies.
+execute their bodies. An explicit `:ForthStackRun word` also shows observations
+inside definitions, marked `last call`, for debugging that execution.
 
 Each update runs the program again, including its input and output operations.
 Coverage is still partial: not every Forth operation is traced. See the

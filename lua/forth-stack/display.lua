@@ -18,16 +18,23 @@ function M.clear(bufnr)
   end
 end
 
-function M.render(bufnr, lines)
+function M.render(bufnr, lines, entry)
   M.clear(bufnr)
   vim.api.nvim_set_hl(0, 'ForthStackValue', { default = true, link = 'Comment' })
   for line, history in pairs(lines) do
-    local last = history[#history]
-    vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
-      virt_text = {{ M.stack(last.stack, last.elements) .. '  '
-        .. (last.phase == 'label' and ('label ' .. last.label) or ('after ' .. last.token)), 'ForthStackValue' }},
-      virt_text_pos = 'eol',
-    })
+    -- In file mode, a body event belongs to a later call, not this source line.
+    local last
+    for _, event in ipairs(history) do
+      if not event.compiled or (type(entry) == 'string' and entry ~= '') then last = event end
+    end
+    if last then
+      local text = {{ M.stack(last.stack, last.elements) .. '  '
+        .. (last.phase == 'label' and ('label ' .. last.label) or ('after ' .. last.token)), 'ForthStackValue' }}
+      if last.compiled then text[#text + 1] = { '  (last call)', 'ForthStackValue' } end
+      vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
+        virt_text = text, virt_text_pos = 'eol',
+      })
+    end
   end
 end
 
@@ -48,9 +55,11 @@ function M.cursor(bufnr, lines, position)
   local history = M.at_token(lines[position[1]], position[2])
   if not history then return end
   local last = history[#history]
+  local text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }}
+  if last.compiled then text[#text + 1] = { '(last call) ', 'ForthStackValue' } end
   vim.api.nvim_buf_set_extmark(bufnr, M.cursor_namespace, position[1] - 1,
     last.column_bytes - 1 + #last.token, {
-      virt_text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }},
+      virt_text = text,
       virt_text_pos = 'inline', right_gravity = false,
     })
 end
@@ -61,6 +70,9 @@ function M.inspect(history)
     last.phase == 'label' and ('Label: ' .. last.label) or ('After: ' .. last.token),
     'Event: ' .. last.seq, 'Observations on this line: ' .. #history,
     'Top on the right; value types are not inferred.' }
+  if last.compiled then
+    text[#text + 1] = 'Context: last call; this definition does not execute when declared.'
+  end
   if last.elements then
     text[#text + 1] = ''
     for i, element in ipairs(last.elements) do
