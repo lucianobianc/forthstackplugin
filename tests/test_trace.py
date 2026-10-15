@@ -167,6 +167,19 @@ class TraceTests(unittest.TestCase):
         self.successful(result, [42])
         self.assertFalse(self.source.exists())
 
+    def test_birthday_example_and_readable_errors(self):
+        result = self.run_source(": birthday 1+ ;\n: exemplo 16 birthday ;", entry="exemplo")
+        self.successful(result, [17])
+        result = self.run_source(": sample 1+ ;")
+        self.assertEqual(result["forth_code"], -4)
+        self.assertIn("pilha vazia", result["diagnostic"])
+        self.assertIn("token '1+'", result["diagnostic"])
+        result = self.run_source(": sample +1 ;")
+        self.assertEqual(result["forth_code"], -13)
+        self.assertIn("palavra Forth desconhecida", result["diagnostic"])
+        self.assertIn("token '+1'", result["diagnostic"])
+        self.assertIn(str(self.source), result["diagnostic"])
+
     def test_protocol_rejects_invalid_sequence_and_false_success(self):
         with self.assertRaises(ValueError):
             module.parse_trace("E 1 0 2 0\nX 0\n")

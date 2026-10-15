@@ -22,7 +22,9 @@ COMANDOS                                                  *forth-stack-commands*
 :ForthStackDemo           Abre exemplo incluído com um registro pronto.
 :ForthStackRun {palavra}  Executa o buffer e ativa atualização após a digitação.
 :ForthStackStop           Pausa atualização e cancela execução do buffer atual.
-:ForthStackStatus         Mostra estado e último erro do buffer.
+:ForthStackStatus         Abre estado e erro completo em uma janela de texto.
+                         Use q para fechar ou :write /tmp/forth-stack-error.txt
+                         para salvar a mensagem.
 :ForthStackLoad {json}    Carrega registro JSON externo de versão 1.
 :ForthStackInspect        Inspeciona última observação na linha do cursor.
 :ForthStackToggle         Oculta ou mostra os dados carregados.

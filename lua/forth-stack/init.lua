@@ -150,6 +150,34 @@ function M.status(bufnr)
   return vim.b[bufnr].forth_stack_status or 'inativo', vim.b[bufnr].forth_stack_error
 end
 
+function M.status_view(bufnr)
+  bufnr = buffer(bufnr)
+  local state, err = M.status(bufnr)
+  local filename = vim.api.nvim_buf_get_name(bufnr)
+  local lines = { 'Forth Stack — diagnóstico', '', 'Estado: ' .. state,
+    'Arquivo: ' .. (filename ~= '' and filename or '(sem nome)'), '',
+    'Fechar: q', 'Salvar mensagem: :write /tmp/forth-stack-error.txt', '', }
+  vim.list_extend(lines, vim.split(err or 'Nenhum erro registrado.', '\n', { plain = true }))
+  local origin = vim.api.nvim_get_current_win()
+  vim.cmd('botright 12new')
+  local window = vim.api.nvim_get_current_win()
+  local report = vim.api.nvim_get_current_buf()
+  vim.bo[report].buftype = 'nofile'
+  vim.bo[report].bufhidden = 'wipe'
+  vim.bo[report].buflisted = false
+  vim.bo[report].swapfile = false
+  vim.bo[report].filetype = 'text'
+  vim.api.nvim_buf_set_lines(report, 0, -1, false, lines)
+  vim.bo[report].modifiable = false
+  vim.wo.wrap = true
+  vim.wo.linebreak = true
+  vim.keymap.set('n', 'q', function()
+    if vim.api.nvim_win_is_valid(window) then vim.api.nvim_win_close(window, true) end
+    if vim.api.nvim_win_is_valid(origin) then vim.api.nvim_set_current_win(origin) end
+  end, { buffer = report, silent = true })
+  return report
+end
+
 vim.api.nvim_create_autocmd('BufFilePost', {
   group = vim.api.nvim_create_augroup('ForthStackSource', { clear = true }),
   callback = function(args) M.clear(args.buf) end,

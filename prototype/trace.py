@@ -54,6 +54,31 @@ def parse_trace(raw):
     return sites, events, result
 
 
+def describe_failure(code, sites, events, entry):
+    messages = {
+        -4: "pilha vazia: a operação precisa de valores de entrada",
+        -9: "acesso inválido à memória",
+        -10: "divisão por zero",
+        -13: "palavra Forth desconhecida",
+        -14: "palavra permitida apenas dentro de uma definição compilada",
+        -22: "estrutura de controle incompleta ou incompatível",
+        -4096: "event limit exceeded",
+        -4097: "stack depth limit exceeded",
+    }
+    message = messages.get(code, "exceção Forth")
+    source = None
+    if not events and sites:
+        # The last parsed token is a compilation location, not an execution snapshot.
+        source = sites[max(sites)]
+        message = "na compilação: " + message
+    elif events:
+        source = events[-1].get("source")
+    if source:
+        message += (f" — {source['file']}:{source['line']}:{source['column_bytes']}"
+                    f" (token {source['token']!r})")
+    return message + f"; entrada: {entry!r}"
+
+
 def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
           max_events=10000, max_depth=256, source_text=None):
     source = Path(source).resolve(strict=source_text is None)
@@ -111,8 +136,11 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
             status, diagnostic = "incomplete", "missing result marker"
         elif result != 0:
             status = "forth_error"
-            diagnostic = {-4096: "event limit exceeded",
-                          -4097: "stack depth limit exceeded"}.get(result, "Forth THROW")
+            diagnostic = describe_failure(result, sites, events, entry)
+    if status == "process_error":
+        diagnostic = "Gforth encerrou com código " + str(returncode)
+        if stderr.strip():
+            diagnostic += ": " + stderr.strip()[:1500]
     return {"format_version": 1, "status": status, "complete": status == "ok",
             "source": str(source), "entry": entry, "forth_code": result,
             "process_returncode": returncode, "diagnostic": diagnostic,

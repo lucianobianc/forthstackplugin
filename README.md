@@ -101,7 +101,7 @@ para entender quais estados são exibidos.
 | `:ForthStackInspect` | Mostra detalhes da pilha na linha do cursor |
 | `:ForthStackToggle` | Oculta ou mostra as pilhas |
 | `:ForthStackClear` | Limpa as pilhas e pausa o acompanhamento |
-| `:ForthStackStatus` | Mostra o estado e o último erro |
+| `:ForthStackStatus` | Abre o diagnóstico completo em uma janela de texto |
 
 Se algo não funcionar, comece por:
 

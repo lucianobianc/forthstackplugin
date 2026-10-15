@@ -199,3 +199,14 @@ troca da palavra de entrada, cancelamento de respostas antigas, recarga do disco
 Clear, modo manual,
 arquivo novo e desligamento por renomeação/fechamento. O arquivo no disco e o
 estado modified do buffer são verificados para impedir salvamento implícito.
+
+## Diagnóstico legível
+
+`:ForthStackStatus` abre um split de texto com o estado e a mensagem completa do
+último erro. Linhas longas são quebradas visualmente; é possível rolar normalmente,
+copiar o texto ou salvar com `:write /tmp/forth-stack-error.txt`. `q` fecha o
+relatório e volta ao código. A janela é temporária e não modifica o arquivo Forth.
+As mensagens distinguem códigos comuns do Gforth (pilha vazia, palavra desconhecida,
+divisão por zero etc.) e incluem a última posição observada quando disponível.
+Essa posição é contexto de compilação/última sonda, não um snapshot garantido no
+instante da falha. Falhas do processo Gforth preservam também seu stderr.
