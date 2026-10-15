@@ -1,498 +1,378 @@
 # Forth Stack Visualizer for Neovim
-**Project Specification — Version 0.1**
 
-- **Status:** Initial proposal
-- **Plugin language:** Lua
-- **Editor:** Neovim
-- **Forth engines:** Gforth initially; pForth in the future
-- **Primary platform:** Linux
+**Project specification — Version 0.2**
 
----
+- **Status:** Working experimental implementation; supported behavior and roadmap.
+- **Editor and platform:** Neovim 0.10 or later, primarily Linux.
+- **Implementation:** Lua interface and symbolic analysis; Python supervisor and
+  identity tracking; Gforth instrumentation.
+- **Execution engine:** Gforth, tested with 0.7.3 on Linux x86-64 and Neovim 0.10.4.
+- **Future engine candidate:** pForth; not implemented.
 
-## 1. Overview
+This revision replaces the initial proposal where product decisions changed.
+Automatic file execution, optional token-level inline display, source-comment
+labels, symbolic stack effects, and Neovim diagnostics are part of the current
+scope. Interactive labels and companion metadata files remain future options.
 
-The project is a Neovim plugin that visualizes the data stack during execution
-of Forth programs.
+## 1. Purpose and principles
 
-The visualization should appear directly beside source lines, allowing the
-programmer to follow values as they change and identify stack elements using
-custom labels.
+Make Forth data flow visible beside the code without modifying the buffer or
+inventing concrete inputs for definitions. Runtime states come from a real Forth
+engine; symbolic definition states come from a separate bounded analyzer.
 
-The system will use a real Forth interpreter as its execution engine rather than
-relying exclusively on static analysis.
+1. Preserve source text and ordinary Forth syntax and execution semantics.
+2. Use native Neovim virtual text, extmarks, floating windows, and diagnostics.
+3. Distinguish actual execution, symbolic assumptions, and incomplete results.
+4. Require little configuration and impose no default keybindings.
+5. Propagate labels conservatively; equal values do not prove equal identities.
+6. Keep execution, trace validation, symbolic analysis, and presentation separate.
+7. Document unsupported operations instead of promising complete Forth coverage.
 
-The plugin must not change Forth syntax, semantics, or source files.
-
-### 1.1 Main objective
-
-Make the flow of data in Forth programs immediately understandable by displaying
-intermediate stack states.
-
-### 1.2 Principles
-
-1. Preserve the Forth language in full.
-2. Use Neovim's native capabilities.
-3. Use existing Forth interpreters.
-4. Minimize manual configuration.
-5. Automate value and label tracking wherever possible.
-6. Separate execution, analysis, presentation, and persistence.
-7. Develop incrementally, keeping the system functional at each stage.
-
----
+Execution is not a sandbox. Instrumentation and analysis have explicit limits;
+using the real interpreter does not imply every operation is observable.
 
 ## 2. User experience
 
-### 2.1 Stack visualization
+### 2.1 Defaults and execution lifecycle
 
-After executing a program, the plugin should show stack states beside the
-corresponding lines.
+Opening a named `.fs` file starts file-mode tracing by default. After a 350 ms
+pause in editing, including Insert mode, the plugin reruns the current unsaved
+snapshot. Included files are read from disk. The user file is never saved by the
+plugin; a new buffer may run if its name belongs to an existing directory.
 
-Conceptual example:
+- `ForthStackRun` executes the file and enables updates for that buffer.
+- `ForthStackRun word` loads the file, then calls that word once more. This is
+  additional execution, not an isolated invocation of the word's definition.
+- `ForthStackStop` pauses the current buffer; Run resumes it.
+- `ForthStackAutoToggle` switches automatic `.fs` tracing for the session,
+  pausing or resuming eligible buffers.
+- Stop/Clear remain paused when a buffer is reentered or reloaded. Renaming or
+  closing a buffer disarms its existing tracking.
+- `auto_start = false` disables automatic startup. `auto_update = false`
+  independently disables reruns after edits; an initial automatic run may still
+  occur when auto_start is enabled.
 
-```forth
-15                 [ AGE: 15 ]
-BIRTHDAY           [ AGE: 16 ]
-18                 [ AGE: 16, 18 ]
->=                 [ FALSE ]
-```
+Every runtime update repeats the program's effects, including I/O. Each edit
+invalidates old observations and cancels the previous run. Filename, changedtick,
+and run-identity checks reject late results. Automatic failures do not generate
+repeated notification popups while typing.
 
-Bracketed contents represent visual elements produced by the plugin. They are
-not part of the Forth file. The top of the stack appears on the right.
+### 2.2 Runtime line annotations
 
-The representation should distinguish numeric values, logical values, and other
-types when there is enough information to do so safely.
+File-mode end-of-line annotations follow top-level execution. A definition must
+not appear to have executed when it was merely declared. Operations inside its
+body must not inherit unrelated top-level values as symbolic inputs.
 
-### 2.2 Custom labels
-
-The user should be able to name stack elements.
-
-```text
-Before: [ 15 ]
-After:  [ AGE: 15 ]
-```
-
-The first implementation assigns labels through ordinary single-line
-`( LABEL: name )` Forth comments. These do not change Forth execution semantics.
-Interactive assignment without changing source remains a possible later interface.
-A label conceptually identifies an element, not merely its position or number.
-
-### 2.3 Automatic label propagation
-
-Labels should follow elements through transformations that preserve their
-conceptual identity.
+The comments on the right below illustrate generated virtual text:
 
 ```forth
-15                 [ AGE: 15 ]
-BIRTHDAY           [ AGE: 16 ]
+: birthday 1+ ;
+16                 \ [ 16 ]  after 16
+birthday           \ [ 17 ]  after birthday
 ```
 
-When an operation consumes elements and produces a semantically different result,
-labels must not be transferred automatically.
+The data-stack top is on the right. Runtime cells are displayed as integers;
+flags, addresses, and value types are not automatically inferred. In particular,
+Forth false/true values appear as `0` and `-1`, not inferred typed booleans.
+
+Repeated executions retain observations in execution order. The current display
+selects the latest relevant observation; selecting an earlier occurrence is not
+yet implemented.
+
+Explicit named-word runs may show concrete body observations where symbolic
+coverage is unavailable, marked `last call`. Inspect and inline views can also
+reveal recorded body observations with that marker. A mixed line containing both
+a definition and top-level execution gives display priority to its top-level
+state. Legacy imported traces without source-word metadata retain their previous
+presentation because the missing context cannot be reconstructed reliably.
+
+### 2.3 Optional inline display
+
+Continuous inline display is off by default. It selects the token containing the
+cursor using byte positions, then shows the state immediately after that token.
+Source text is never changed.
+
+- `ForthStackInline` requests a one-time display until the cursor moves. When no
+  analysis/trace state is available, it runs the file once without enabling
+  ongoing updates. It uses an existing selected entry when tracking one.
+- `ForthStackInlineToggle` toggles continuous inline display for the buffer.
+- Documented definitions prefer symbolic token states; other tokens use recorded
+  execution. Unexecuted tokens without symbolic coverage have no state to show.
+- Whitespace has no token state. Repeated runtime tokens use their latest event.
+- If that exact observation is already visible at the end of the line, inline
+  display must not duplicate it. Equal values at a different token are not enough
+  to suppress its inline state. A hidden end-of-line annotation does not suppress
+  a one-time inline request.
+- Annotations are buffer-scoped and shared by windows displaying that buffer.
+
+### 2.4 Inspect and diagnostics
+
+`ForthStackInspect` opens a nonfocused floating window for the selected token,
+falling back to the latest relevant observation on the line. It includes stack
+contents, observation context, and runtime identities/copy origins when present.
+Editing invalidates the view. There is no occurrence-navigation UI yet.
+
+Diagnostics use native Neovim severity and highlight groups, including red errors
+in standard themes. They do not reset unrelated plugins' diagnostics. The full
+message is available through normal diagnostic floats/navigation; execution
+status and errors are also available through `ForthStackStatus`.
+
+## 3. Runtime labels and identities
+
+Users assign a label to the current top cell with an ordinary, same-line Forth
+comment. The tracer observes that comment's execution position:
 
 ```forth
-15                 [ AGE: 15 ]
-18                 [ AGE: 15, 18 ]
->=                 [ FALSE ]
+17 ( LABEL: age )   \ [ age:17 ]  label age
+dup                \ [ age:17, age:17 ]  after dup
+1+                 \ [ age:17, age:18 ]  after 1+
+18 >=              \ [ age:17, -1 ]  after >=
 ```
 
-The comparison result does not inherit `AGE`.
+The uppercase marker `LABEL:` is followed by a 1–64 character ASCII name matching
+`[A-Za-z_][A-Za-z0-9_-]{0,63}`. The comment must close on the same line. Strings
+and ordinary comments do not create annotations. Invalid recognized names and
+labels applied to an empty runtime stack report an error.
 
-**Fundamental rule:** identity preservation cannot be inferred solely from the
-number of elements consumed and produced.
+The plugin never writes these comments. They persist because the user saves
+normal Forth source; IDs are reconstructed on every run. No interactive
+`ForthStackLabel` command or companion metadata file is currently implemented.
 
-The analyzer should combine execution information, propagation rules, and
-provenance tracking. For ambiguous cases, the initial policy is not to propagate
-the label, avoiding potentially incorrect information.
+For annotated runs, each event can contain elements with `id`, `value`, optional
+`label`, and optional immediate copy `origin`. IDs belong to one run. Previous
+snapshots remain immutable; the event stream supplies observation history rather
+than a separate persistent history field on each element.
 
-### 2.4 Stack manipulation
+- `dup`, `over`, and `tuck` create distinct copy IDs and retain origin links.
+- `swap`, `rot`, `nip`, and `drop` move or remove the appropriate identities.
+- `1+`, `1-`, and recognized literal unit-offset forms preserve the label/ID.
+- Comparisons consume operand identities and create unlabeled results.
+- Other supported arithmetic creates fresh result identities while preserving
+  untouched lower cells.
+- Traced user calls use their observed internal operations. Unknown precompiled
+  calls, opaque macros, and unexplained mismatches clear identities conservatively.
 
-The analyzer should initially understand these operations:
+Runtime primitive rules use original execution tokens, not merely source names.
+Matching numbers or stack depths never suffices to infer identity preservation.
+See [label rules](doc/labels.md) for exact propagation and resynchronization rules.
 
-| Word | Expected behavior |
+## 4. Independent symbolic definition analysis
+
+Automatic symbolic analysis is on by default and does not execute Forth. A fixed
+stack-effect comment immediately after a definition's name supplies its inputs
+and intended outputs; intervening comments/newlines are allowed.
+
+```forth
+: can-drive ( age -- allowed )  \ [ age ]  symbolic inputs
+  18                           \ [ age, 18 ]  symbolic
+  >=                           \ [ allowed ]  symbolic
+;
+```
+
+`( name age id -- status )` seeds `[ name, age, id ]`, independently of the
+rest of the program. Each name represents one data-stack cell. Definitions need
+not be called. When complete analysis produces the declared output depth, its
+final positions receive the declared output names. This validates depth, not
+value meaning or types. Symbolic names are separate from runtime LABEL identities.
+
+The supported subset includes integer literals, basic stack/arithmetic/comparison
+operations, earlier declared fixed contracts, and nested `if`/`else`/`then`.
+Branches must leave equal depths; different values at a joined position become
+`?`. Calls use declared contracts as assumptions, not proofs of callee correctness.
+
+Unsupported words, loops, recursion, value-dependent effects, non-data stacks,
+custom parsing, and recognized dictionary changes stop analysis with a notice.
+A known prefix may remain visible; later states and verified output names must
+not be fabricated. Insufficient documented inputs, output-depth mismatches, and
+incompatible branch depths produce warnings. Definitions without usable contracts
+have no symbolic states. In-file redefinitions shadow builtin rules.
+
+`ForthStackAnalyze` performs one analysis without Python/Gforth, pauses ongoing
+execution, and sets status to `analyzed`. Run resumes execution. The `symbolic`
+option controls automatic analysis; an explicit Analyze command still works.
+
+This is a bounded source analyzer, not a complete Forth compiler or type checker.
+See [symbolic analysis](doc/symbolic-analysis.md) for grammar, assumptions,
+unsupported syntax, limits, and warning semantics.
+
+## 5. Runtime failures and partial observations
+
+An actual Gforth failure must produce an error diagnostic. In file mode, the
+location identifies the active outer top-level call; the message retains the
+internal failing token. For example, calling `can-drive` on an empty stack marks
+that call with `Stack underflow`. Compile failures use the failing compilation
+site. Unmatched source locations produce a first-line summary, not an invented
+exact token location.
+
+Successful observations from the current snapshot before a validated Forth
+failure may remain visible, explicitly marked `before error` in line, inline,
+and Inspect views. Status remains `error`; the failed operation gets no invented
+after-state. Symbolic definition analysis stays independent of that failure.
+
+Timeouts, malformed protocol, incomplete results, and process failures do not
+expose partial runtime states. Imported failed JSON traces are rejected. Edits
+invalidate old observations and diagnostics; correcting the program and rerunning
+clears execution errors. Manual execution failures may also notify the user.
+
+## 6. Commands, setup, and keys
+
+| Command | Current behavior |
 | --- | --- |
-| `DUP` | Duplicates an element and its identity information |
-| `DROP` | Removes an element and its label |
-| `SWAP` | Swaps elements and labels |
-| `OVER` | Copies the corresponding element and its label |
-| `ROT` | Rearranges elements and labels |
-| `NIP` | Removes the corresponding element |
-| `TUCK` | Rearranges and duplicates the corresponding elements |
+| `ForthStackRun [word]` | Run a file snapshot, optionally call a word, follow edits |
+| `ForthStackAnalyze` | Analyze documented definitions once without execution |
+| `ForthStackStop` | Pause/cancel execution for this buffer |
+| `ForthStackAutoToggle` | Toggle session-wide automatic `.fs` tracing |
+| `ForthStackInline` | Request one inline observation until the cursor moves |
+| `ForthStackInlineToggle` | Toggle continuous inline display for this buffer |
+| `ForthStackInspect` | Inspect the selected token or line in a float |
+| `ForthStackToggle` | Hide/show recorded and symbolic stack annotations |
+| `ForthStackClear` | Clear owned views/diagnostics and pause tracking |
+| `ForthStackStatus` | Open complete status/error details in a text window |
+| `ForthStackLoad path.json` | Import a validated successful trace; pause updates |
+| `ForthStackDemo` | Open a bundled example and recorded trace without execution |
+| `checkhealth forth-stack` | Check Neovim, executables, and installed runtime files |
 
-Copies must have distinct instance identities while retaining their origin link.
-Arithmetic and logical operations need their own propagation rules; they must
-not all be assumed to preserve identity.
+Setup is optional with normal native packages. Explicit `setup()` also registers
+commands when startup discovery was skipped. Native package and lazy.nvim
+installation paths are documented in the README.
 
----
+| Setup option | Default | Constraint or meaning |
+| --- | --- | --- |
+| `python` | `python3` | Executable name/path, no shell arguments |
+| `gforth` | `gforth` | Executable name/path, no shell arguments |
+| `timeout` | `5` | Positive seconds, at most 60 |
+| `max_events` | `10000` | Integer, 1–10000 |
+| `max_depth` | `256` | Integer, 1–256 runtime cells |
+| `symbolic` | `true` | Automatic symbolic definition analysis |
+| `auto_start` | `true` | Automatic startup for `.fs` files |
+| `inline` | `false` | Initial continuous-inline preference |
+| `auto_update` | `true` | Updates after editing an armed buffer |
+| `debounce_ms` | `350` | Integer typing delay, 1–5000 ms |
 
-## 3. Dynamic execution
+No global or buffer-local keybindings are installed by the plugin. Users may
+configure them normally; suggested Forth-local mappings are `<localleader>s`
+(one-time inline), `<localleader>i` (inline toggle), and `<localleader>r` (Run).
+Existing user/plugin mappings must be considered. Optional which-key integration
+comes from normal mapping descriptions; a custom shortcut-configuration screen
+is not part of current scope. The README supplies a buffer-local example.
 
-### 3.1 Forth engine
+## 7. Execution, trace protocol, and bounds
 
-The first implementation will use Gforth. The architecture should allow other
-engines, such as pForth, to be added later. Their internal instrumentation
-mechanisms must not be assumed to be equivalent.
+Gforth compile/interpreter hooks insert in-memory observation probes, including
+inside user-defined compiled words. A Python supervisor runs in a separate
+process, receives the unsaved snapshot on stdin, and loads a private temporary
+copy under the original source identity. Arguments are passed without a shell.
 
-### 3.2 Instrumentation
+The trace contains ordered entry/before/after/return events, source file, line,
+one-based byte column, token, containing word, and numeric stack. Label/opaque
+identity events extend that information when required. Source word metadata
+separates top-level execution from body observations. This is source-token
+instrumentation, not guaranteed tracing of every executed primitive.
 
-The plugin must obtain enough information to reconstruct intermediate stack
-states during execution. Where technically available, this includes:
+- JSON format 1 preserves numeric traces; format 2 adds element identities.
+- Gforth failures may supply an additive `error_location` for diagnostics.
+- Import validates format, event sequence, integer range, source positions and
+  matching tokens; version 2 also validates element identities and labels.
+- Source validation is not a whole-file checksum. Live runs additionally use
+  buffer changedtick/filename checks.
+- Source snapshots and received/imported JSON are limited to 4 MiB.
+- Lua presentation rejects runtime integers outside ±(2^53−1) to avoid rounding;
+  full-width Gforth cells are not silently approximated.
+- Symbolic limits are 4 MiB, 50000 lexical tokens, 256 cells, bounded expressions,
+  and 64-byte stack-effect names. These are independent of runtime max_depth.
+- stdout/stderr are captured in memory; a dedicated program-output panel and
+  preemptive bounded output capture are not implemented.
+- Stop terminates the supervisor and its direct Gforth child. Descendants started
+  by the program are not managed as a process tree.
 
-- The execution location in the source.
-- Stack states before and after observed operations.
-- The operation executed.
-- Chronological execution order.
-- Information needed to track element origins.
+Runtime execution is asynchronous. JSON processing and symbolic analysis are
+bounded but run on Neovim's thread; absence of pauses for all large inputs has
+not been established. Unsaved included-file buffers do not participate in source
+snapshots, and their edits do not trigger automatic reruns of dependents.
 
-Inspecting the stack only at the end of the program is insufficient.
-Instrumentation of compiled words must be investigated specifically for Gforth.
+See [Gforth investigation](doc/gforth-instrumentation.md),
+[display and protocol](doc/neovim-display.md), and the prototype for exact
+instrumentation coverage and implementation details.
 
-**Gforth is not assumed to expose all this information through a ready-made API.**
-Additional instrumentation may be necessary.
-
-### 3.3 Controlled execution
-
-The user must explicitly start execution:
-
-```vim
-:ForthStackRun
-```
-
-After starting with `:ForthStackRun` (whole file) or `:ForthStackRun word` (file
-plus an additional word call), visualization updates automatically after a pause
-in typing, including unsaved changes. Each edit cancels previous runs and
-invalidates their results. `:ForthStackStop` pauses tracking. This revision
-replaces the original restriction to manual execution only.
-
-The interpreter must run in a process separate from Neovim. The plugin must
-support interruption and configurable time and recording-volume limits.
-These limits alone do not provide security isolation; untrusted Forth programs
-require additional sandboxing.
-
-### 3.4 Multiple executions
-
-A line may execute multiple times, particularly in loops. The system should
-preserve observed-state history and allow selection of a particular occurrence.
-Initially, it may show only the latest occurrence, provided the architecture
-allows future history navigation.
-
-### 3.5 Conditional paths
-
-The analyzer must reflect the path actually taken during execution. It need not
-compute all possible paths through static analysis. Displayed results depend on
-the input used in the observed execution.
-
----
-
-## 4. Identity model
-
-Each observed stack element should have an internal representation independent
-of its concrete value.
-
-```text
-StackElement
-    instance_id
-    value
-    label
-    origin
-    history
-```
-
-- `instance_id`: identifies the observed instance.
-- `value`: represents the value obtained during execution.
-- `label`: optional user-assigned label.
-- `origin`: creation or derivation information.
-- `history`: references to recorded transformations.
-
-Instance IDs are valid within one run, not necessarily across different runs.
-The model must distinguish:
-
-1. Identity preservation.
-2. Copying an element.
-3. Transforming an element.
-4. Combining elements.
-5. Consumption and disposal.
-6. Creation of a new element.
-
-### 4.1 Limits of automatic inference
-
-Conceptual identity cannot always be determined from execution alone.
-Two words with similar stack effects may represent semantically different
-operations. The system must therefore support:
-
-- Known automatic rules.
-- Provenance tracking.
-- Conservative rules for unknown operations.
-- Optional user adjustments, without requiring them for everyday use.
-
-Perfect semantic inference is not required.
-
----
-
-## 5. Neovim integration
-
-### 5.1 Technology
-
-The plugin will be developed primarily in Lua, using Neovim's native APIs.
-
-### 5.2 Virtual text
-
-Stack states will initially use virtual text. Displayed contents must not alter
-the text stored in the buffer.
-
-### 5.3 Extmarks
-
-Extmarks will associate visual information with source positions. They must not
-be treated as persistent, infallible instruction identifiers. Associations must
-be invalidated or reconciled when code changes.
-
-### 5.4 Initial interface
-
-Proposed commands:
-
-| Command | Function |
-| --- | --- |
-| `:ForthStackRun` | Execute and collect states |
-| `:ForthStackClear` | Remove visualizations |
-| `:ForthStackToggle` | Show or hide visualizations |
-| `:ForthStackInspect` | Inspect the stack at the selected location |
-| `:ForthStackLabel` | Assign or change a label |
-| `:ForthStackStop` | Interrupt execution |
-
-Names are provisional. Users must be able to configure shortcuts without the
-plugin imposing global keymaps.
-
-### 5.5 Detailed visualization
-
-A floating window may show the entire stack, including contents wider than the
-available line. Presentation must remain readable across terminals and color
-schemes.
-
----
-
-## 6. Metadata persistence
-
-The initial label implementation persists annotations directly in ordinary Forth
-comments supplied by the user. The plugin does not write the source. Separate
-metadata files remain a future option for interactive labels and preferences:
+## 8. Implemented architecture
 
 ```text
-program.fs
-program.stack.json
+lua/forth-stack/
+  init.lua          buffer lifecycle and public operations
+  config.lua        validated setup options
+  commands.lua      Neovim commands
+  engine.lua        asynchronous supervisor launch and cancellation
+  live.lua          per-buffer debounce and update lifecycle
+  trace.lua         trace import, validation, source associations
+  display.lua       runtime/inline annotations and Inspect
+  symbolic.lua      bounded source analysis and symbolic annotations
+  diagnostics.lua   source-linked runtime diagnostics
+  health.lua        health checks
+  paths.lua         installed runtime paths
+plugin/forth-stack.lua  native startup registration
+prototype/
+  trace.fs          Gforth observation hooks
+  trace.py          process supervision and structured trace production
+  labels.py         conservative runtime identities and label propagation
+  investigate.py    instrumentation research probes
 ```
 
-The `.fs` file must remain untouched by the plugin (users may edit label comments). The companion file may contain:
-
-- User-assigned labels.
-- References to element creation locations.
-- User-defined propagation rules, when needed.
-- File-specific display preferences.
-
-Execution states need not be persisted initially.
-
-### 6.1 Associating labels with code
-
-For future external metadata, storing only line numbers or temporary execution
-IDs is insufficient. Current comment annotations are parsed again each run. The system
-must provide a strategy to find label assignment locations again in later runs.
-This may combine file location, syntactic context, and operation identification.
-
-Changes that prevent a reliable association must invalidate or flag the label
-rather than silently attaching it to the wrong element.
-
-### 6.2 Format
-
-JSON is the initially proposed format. The final schema will follow validation
-of the label association mechanism. A format version identifier must allow
-future migrations.
-
----
-
-## 7. Proposed architecture
-
-```text
-forth-stack.nvim/
-├── lua/
-│   └── forth-stack/
-│       ├── init.lua
-│       ├── config.lua
-│       ├── display.lua
-│       ├── labels.lua
-│       ├── stack.lua
-│       ├── trace.lua
-│       ├── persistence.lua
-│       └── engine/
-│           ├── init.lua
-│           └── gforth.lua
-├── plugin/
-│   └── forth-stack.lua
-├── tests/
-├── examples/
-├── doc/
-└── README.md
-```
-
-Responsibilities must remain separate:
-
-**Engine:** executes programs and supplies observable events.
-
-**Tracing:** reconstructs states and relationships between elements.
-
-**Labels:** manages names and propagation rules.
-
-**Persistence:** stores and retrieves metadata.
-
-**Interface:** presents results in Neovim.
-
-The engine/analyzer protocol must be documented and independent of presentation.
-
----
-
-## 8. Initial scope
-
-### Included
-
-- Neovim on Linux.
-- Lua plugin.
-- Initial Gforth integration.
-- Explicit file or word execution and automatic updates with debounce.
-- Stack visualization with virtual text.
-- Custom labels.
-- Companion-file persistence.
-- Basic stack-operation tracking.
-- Simple arithmetic transformations.
-- Recording observed states.
-- Error handling and interruption.
-
-### Outside the initial scope
-
-- Developing a new Forth interpreter.
-- Simultaneous support for multiple interpreters.
-- Complete static analysis.
-- Perfect semantic inference.
-- Changing Forth syntax.
-- A standalone GUI independent of Neovim.
-- Full support for every Forth extension.
-- Complete return-stack tracking.
-- Multiple concurrent Forth tasks.
-
----
-
-## 9. Development plan
-
-### Phase 1 — Technical investigation
-
-**Objective:** demonstrate the feasibility of Gforth instrumentation.
-
-Investigate observing intermediate states and linking them to source
-instructions, including inside compiled words.
-
-Deliverable: a minimal prototype that executes a Forth example and produces a
-structured state log.
-
-**Acceptance criterion:** demonstrate tracing inside a user-defined word, not
-only between top-level interpreted lines. If the mechanism cannot do this,
-document its limitations and evaluate alternatives before proceeding.
-
-### Phase 2 — Neovim visualization
-
-Implement virtual-text stack displays, initially using test execution logs.
-
-**Acceptance criterion:** correctly display different states beside their source
-lines without modifying the buffer.
-
-### Phase 3 — Identity model
-
-Implement a parallel stack and basic operation tracking.
-
-**Acceptance criterion:** movements, duplication, and removal correctly preserve
-associations between elements and labels.
-
-### Phase 4 — Labels and persistence
-
-Allow interactive label assignment and companion-file storage.
-
-**Acceptance criterion:** close and reopen a file, rerun the program, and recover
-labels at reliably identified locations.
-
-### Phase 5 — Functional integration
-
-Integrate execution, tracing, labels, and visualization.
-
-**Acceptance criterion:** run a real Forth program, visualize its states, and
-track labels automatically through supported operations.
-
-### Phase 6 — Control structures
-
-Extend tracing to conditionals, loops, and repeated execution.
-
-**Acceptance criterion:** show the path actually executed and distinguish
-multiple occurrences on the same line.
-
-### Phase 7 — Extensibility
-
-Document the engine interface and evaluate pForth integration. Actual pForth
-support depends on a later decision.
-
----
-
-## 10. Nonfunctional requirements
-
-### Performance
-
-The plugin must not block Neovim during execution or processing of large logs.
-History needs configurable limits to prevent uncontrolled memory growth.
-
-### Reliability
-
-Unexpected interpreter termination must not compromise the Neovim session.
-Instrumentation failures must be reported. Incomplete states must not be
-presented as complete, reliable logs.
-
-### Compatibility
-
-The minimum Neovim version and supported Gforth versions must be defined and
-documented after initial testing.
-
-### Testability
-
-Tracing, label propagation, and persistence components need tests independent
-of the interface. Interpreter integration must be tested with small,
-reproducible Forth programs.
-
----
-
-## 11. Open technical questions
-
-The initial investigation must address:
-
-1. Which Gforth mechanism can record operations inside compiled words?
-2. What instrumentation granularity is feasible: source word, executed primitive,
-   or both?
-3. How can states be read reliably without misinterpreting addresses, flags,
-   or other value types?
-4. How can words with variable stack effects be traced?
-5. How can identities be reconstructed for unconventional stack manipulation?
-6. How can persistent labels be associated with values created in loops and
-   repeated calls?
-7. What happens when a word cannot be instrumented?
-8. How can event volume be controlled without excessive performance costs?
-
-These questions must not be answered by assumption.
-
----
-
-## 12. Definition of success
-
-The first functional version is successful when the user can:
-
-1. Open a Forth program in Neovim.
-2. Run it using Gforth through the plugin.
-3. View intermediate stack states beside the code.
-4. Assign a label to an element.
-5. See that label follow supported transformations.
-6. See the label removed when the element is consumed without identity preservation.
-7. Close and reopen the file while keeping labels persisted separately.
-8. Do this without changing the language or inserting source annotations.
-
-The result should make Forth's flow of data visible while preserving the
-language's simplicity and character.
+There is no implemented generic backend registry, companion-file persistence
+module, or separate Lua identity engine. Engine extensibility remains a design
+goal; Gforth hooks must not be assumed portable to pForth.
+
+## 9. Acceptance and verification
+
+The existing `tests/run.sh` is the reproducible validation entry point, requiring
+Python 3, Gforth, and Neovim on PATH. Tests cover:
+
+- Real compiled-word and top-level tracing, source mapping, loops/branches,
+  limits, timeouts, unsaved snapshots, and execution failures.
+- Identity/copy provenance, labels, conservative opaque-operation behavior.
+- Native installation, explicit setup, demo, health, imports, asynchronous
+  execution, cancellation, debounce, reloads, and stale-result rejection.
+- Cursor-token selection, symbolic/runtime priorities, duplicate suppression,
+  one-shot requests, optional inline mode, and automatic-start defaults.
+- Symbolic contracts, permutations, branch joins, mismatches, unsupported
+  operations, source/dictionary boundaries, and resource-limit notices.
+- Call-site error diagnostics, partial observations, recovery, analysis without
+  executing Forth, and preserving other plugins' diagnostics.
+
+The implementation has been validated locally with the documented versions.
+An automated CI/version compatibility matrix is not currently checked into the
+repository; broad compatibility is not established by the minimum-version claim.
+
+## 10. Remaining work and priorities
+
+These items are not implemented or are only partially covered. They are roadmap
+items, not claims about current behavior.
+
+| Priority | Work | Acceptance target |
+| --- | --- | --- |
+| Near term | CI and compatibility matrix | Run the suite automatically on changes; verify supported Neovim/Gforth versions |
+| Near term | Observation-history navigation | Select earlier loop/call occurrences and distinguish invocation context |
+| Near term | Broader symbolic coverage | Add operations and selected loop/exit handling with explicit soundness boundaries and regression tests |
+| Hardening | Performance/output/process limits | Profile large files/traces, bound capture earlier, evaluate descendant cleanup |
+| Hardening | Included-file workflow | Define dependency tracking, unsaved includes, and source validation across files |
+| Later | Wider value representation | Preserve full cell precision and explicitly supported floating/return stacks or typed displays |
+| Optional | Interactive labels and external metadata | Relabel without source edits and restore associations reliably after reopening/moving code |
+| Optional | User-defined propagation rules | Declare semantics without confusing equal values, types, and identity |
+| Optional | Engine adapters and pForth investigation | Define a backend contract and demonstrate equivalent observation capabilities |
+
+Interactive labels and companion JSON were proposed initially but superseded
+for the first working version by ordinary source comments. They are not required
+to preserve today's labels across saves/reopens. A custom keybinding screen is
+not planned; native mappings and optional which-key remain the integration path.
+
+Complete static analysis, universal Forth-extension support, perfect semantic
+inference, multiple Forth tasks, and a standalone GUI remain outside scope.
+
+## 11. Definition of the working baseline
+
+The baseline is met when a user can install the plugin, open a `.fs` program,
+observe real top-level stack evolution, inspect intermediate tokens, track labels
+through supported operations, understand documented definitions symbolically,
+and find execution errors at their source calls without the plugin writing to
+the buffer. Saved ordinary label comments survive reopening; no companion-file
+persistence is implied. Unsupported cases must be distinguishable from verified
+observations, and failed/incomplete runs must never be presented as complete.
