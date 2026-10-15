@@ -31,3 +31,4 @@ nvim --headless -u NONE -i NONE -l tests/test_cursor.lua
 nvim --headless -u NONE -i NONE -l tests/test_modes.lua
 nvim --headless -u NONE -i NONE -l tests/test_symbolic.lua
 nvim --headless -u NONE -i NONE -l tests/test_analysis_live.lua
+nvim --headless -u NONE -i NONE -l tests/test_inline_dedup.lua

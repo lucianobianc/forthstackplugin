@@ -155,7 +155,13 @@ function M.cursor(once)
     if enabled == nil then enabled = require('forth-stack.config').options.inline end
     local position = vim.api.nvim_win_get_cursor(0)
     local lines = histories(bufnr, state and state.lines, position[1])
-    display.cursor(bufnr, (once or ((not state or state.visible) and enabled)) and lines or {}, position)
+    local row = position[1]
+    local symbols = analyses[bufnr] and analyses[bufnr].lines[row]
+    local line_end
+    if not state or state.visible then
+      line_end = display.line_end(state and state.lines[row], state and state.entry, symbols)
+    end
+    display.cursor(bufnr, (once or ((not state or state.visible) and enabled)) and lines or {}, position, line_end)
   end
 end
 

@@ -18,16 +18,24 @@ function M.clear(bufnr)
   end
 end
 
+-- Return the observation already represented by the end-of-line annotation.
+function M.line_end(history, entry, symbols)
+  local last, top
+  for _, event in ipairs(history or {}) do
+    if not event.compiled then top = event end
+    if not event.compiled or (type(entry) == 'string' and entry ~= '') then last = event end
+  end
+  if symbols then return top or symbols[#symbols] end
+  return last
+end
+
 function M.render(bufnr, lines, entry, partial, symbolic)
   M.clear(bufnr)
   vim.api.nvim_set_hl(0, 'ForthStackValue', { default = true, link = 'Comment' })
   for line, history in pairs(lines) do
     -- In file mode, a body event belongs to a later call, not this source line.
-    local last
-    for _, event in ipairs(history) do
-      if not event.compiled or (type(entry) == 'string' and entry ~= '') then last = event end
-    end
-    if last and not (last.compiled and symbolic and symbolic.lines[line]) then
+    local last = M.line_end(history, entry, symbolic and symbolic.lines[line])
+    if last and not last.symbolic then
       local text = {{ M.stack(last.stack, last.elements) .. '  '
         .. (last.phase == 'label' and ('label ' .. last.label) or ('after ' .. last.token)), 'ForthStackValue' }}
       if partial then text[#text + 1] = { '  (before error)', 'ForthStackValue' } end
@@ -51,11 +59,12 @@ function M.at_token(history, column)
   return #selected > 0 and selected or nil
 end
 
-function M.cursor(bufnr, lines, position)
+function M.cursor(bufnr, lines, position, line_end)
   vim.api.nvim_buf_clear_namespace(bufnr, M.cursor_namespace, 0, -1)
   local history = M.at_token(lines[position[1]], position[2])
   if not history then return end
   local last = history[#history]
+  if last == line_end then return end -- the same observation is already visible
   local text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }}
   if last.partial then text[#text + 1] = { '(before error) ', 'ForthStackValue' } end
   if last.symbolic then text[#text + 1] = { '(symbolic) ', 'ForthStackValue' }

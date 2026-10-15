@@ -132,7 +132,9 @@ repository for installation, protocol details, and the full investigation.
 
 CURSOR STACKS
 
-Inline display defaults to off. :ForthStackInline shows the cursor token's stack
+Inline display defaults to off. A token already represented by the visible
+end-of-line annotation does not receive a duplicate inline stack.
+:ForthStackInline shows the cursor token's stack
 until the cursor moves. If no trace exists, it runs the file once without arming
 updates. :ForthStackInlineToggle enables or disables cursor-driven inline stacks
 in the current buffer. Set inline=true in setup() to enable it by default.
@@ -165,5 +167,13 @@ standard themes). Use :lua vim.diagnostic.open_float() to read the full message.
 Validated observations before a Forth failure may appear marked "before error";
 execution status stays error. A corrected run clears the error. Editing and Clear
 remove stale results. Failed JSON imports remain rejected.
+
+OPTIONAL KEYS
+
+Suggested buffer-local normal mappings: <localleader>s for ForthStackInline,
+<localleader>i for ForthStackInlineToggle, and <localleader>r for ForthStackRun.
+The plugin assigns none. Check :verbose nmap <localleader>s for existing maps.
+Use a FileType=forth autocmd and vim.keymap.set with buffer and desc options;
+README.md has a complete example. which-key can show the descriptions when used.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

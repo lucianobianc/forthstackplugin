@@ -31,10 +31,10 @@ local ok, err = pcall(function()
   point(2, 1, '[ 10 ]')
   point(2, 3, '[ 10, 20 ]')
   point(2, 6, '[ 30 ]')
-  point(2, 12, '[ 60 ]')
+  point(2, 12, nil) -- final state is already displayed at end of line
   point(2, 2, nil) -- whitespace is not a token
   point(3, 18, '[ 60, age:17, age:17 ]')
-  point(3, 22, '[ 60, age:17, age:18 ]')
+  point(3, 22, nil) -- labeled final state is not repeated inline
   -- Most recent execution of the first dup inside a repeatedly called word.
   point(4, 8, '[ 60, age:17, age:18, age:18, age:18 ]')
   point(6, 10, '[ 60, age:17, age:18, age:18, age:18, age:18, 5 ]')

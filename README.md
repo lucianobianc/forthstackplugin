@@ -146,7 +146,8 @@ trace is available.
 
 Use `:ForthStackInlineToggle` to keep inline display on as you move through the
 current buffer; run it again to turn it off. The end of each line still shows
-its final stack. Nothing is inserted into your source.
+its final stack. When the selected token already has that end-of-line annotation,
+it is shown only once. Nothing is inserted into your source.
 
 For `10 20 +`, the cursor reveals `[ 10 ]` over `10`, `[ 10, 20 ]` over `20`,
 and `[ 30 ]` over `+`. `:ForthStackInspect` also uses the token under the cursor.
@@ -177,6 +178,32 @@ after edits, even after a manual run.
 
 No keybindings are assigned. You can use the commands directly or map them to
 keys of your choice.
+
+## Optional keybindings
+
+Use `<localleader>s` for a one-time stack, `<localleader>i` to toggle inline
+stacks, and `<localleader>r` to run the file. No keys are assigned by the plugin.
+`<localleader>` defaults to `\` unless you set `vim.g.maplocalleader`.
+
+For example, add this to your `init.lua` to map the one-time stack in Forth
+buffers only:
+
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'forth',
+  group = vim.api.nvim_create_augroup('MyForthStackKeys', { clear = true }),
+  callback = function(event)
+    vim.keymap.set('n', '<localleader>s', '<cmd>ForthStackInline<cr>', {
+      buffer = event.buf,
+      desc = 'Show stack once',
+    })
+  end,
+})
+```
+
+Check `:verbose nmap <localleader>s` before choosing a key; other plugins or your
+configuration may already use it. If you use which-key, the mapping's description
+also provides its menu label. To configure more keys, use the commands below.
 
 ## Label your values
 
