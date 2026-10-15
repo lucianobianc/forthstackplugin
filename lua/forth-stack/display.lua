@@ -6,7 +6,7 @@ function M.stack(values, elements)
   local text = {}
   for i, value in ipairs(values) do
     local label = elements and elements[i] and elements[i].label
-    text[#text + 1] = (label and (label .. ':') or '') .. string.format('%.0f', value)
+    text[#text + 1] = (label and (label .. ':') or '') .. (type(value) == 'string' and value or string.format('%.0f', value))
   end
   return #text == 0 and '[ ]' or '[ ' .. table.concat(text, ', ') .. ' ]'
 end
@@ -18,7 +18,7 @@ function M.clear(bufnr)
   end
 end
 
-function M.render(bufnr, lines, entry)
+function M.render(bufnr, lines, entry, partial, symbolic)
   M.clear(bufnr)
   vim.api.nvim_set_hl(0, 'ForthStackValue', { default = true, link = 'Comment' })
   for line, history in pairs(lines) do
@@ -27,9 +27,10 @@ function M.render(bufnr, lines, entry)
     for _, event in ipairs(history) do
       if not event.compiled or (type(entry) == 'string' and entry ~= '') then last = event end
     end
-    if last then
+    if last and not (last.compiled and symbolic and symbolic.lines[line]) then
       local text = {{ M.stack(last.stack, last.elements) .. '  '
         .. (last.phase == 'label' and ('label ' .. last.label) or ('after ' .. last.token)), 'ForthStackValue' }}
+      if partial then text[#text + 1] = { '  (before error)', 'ForthStackValue' } end
       if last.compiled then text[#text + 1] = { '  (last call)', 'ForthStackValue' } end
       vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
         virt_text = text, virt_text_pos = 'eol',
@@ -56,7 +57,9 @@ function M.cursor(bufnr, lines, position)
   if not history then return end
   local last = history[#history]
   local text = {{ ' ' .. M.stack(last.stack, last.elements) .. ' ', 'ForthStackValue' }}
-  if last.compiled then text[#text + 1] = { '(last call) ', 'ForthStackValue' } end
+  if last.partial then text[#text + 1] = { '(before error) ', 'ForthStackValue' } end
+  if last.symbolic then text[#text + 1] = { '(symbolic) ', 'ForthStackValue' }
+  elseif last.compiled then text[#text + 1] = { '(last call) ', 'ForthStackValue' } end
   vim.api.nvim_buf_set_extmark(bufnr, M.cursor_namespace, position[1] - 1,
     last.column_bytes - 1 + #last.token, {
       virt_text = text,
@@ -68,8 +71,9 @@ function M.inspect(history)
   local last = history[#history]
   local text = { 'Stack: ' .. M.stack(last.stack, last.elements),
     last.phase == 'label' and ('Label: ' .. last.label) or ('After: ' .. last.token),
-    'Event: ' .. last.seq, 'Observations on this line: ' .. #history,
+    last.symbolic and 'Analysis: symbolic (documented stack effect)' or ('Event: ' .. last.seq), 'Observations on this line: ' .. #history,
     'Top on the right; value types are not inferred.' }
+  if last.partial then text[#text + 1] = 'Execution incomplete: state recorded before error.' end
   if last.compiled then
     text[#text + 1] = 'Context: last call; this definition does not execute when declared.'
   end

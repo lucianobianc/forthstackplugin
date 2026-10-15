@@ -162,7 +162,7 @@ edits, while `auto_start` independently controls the initial run;
 repeated notifications and is reevaluated after the next edit; `:ForthStackStatus`
 shows diagnostics. `vim.b.forth_stack_status` and `vim.b.forth_stack_error` expose
 this data to the API. Status values are `inactive`, `running`, `pending`,
-`updated`, `paused`, and `error`. Manual Run failures still notify. Old results
+`updated`, `paused`, `analyzed`, and `error`. Manual Run failures still notify. Old results
 do not remain visible while the current version is invalid.
 
 Arguments are passed as a list, without a shell. Each update creates a new
@@ -174,15 +174,17 @@ waits for its direct Gforth child. Additional descendants are not managed.
 Changes to included files in another buffer neither trigger updates nor receive
 changedtick validation.
 
-Only complete successful results are rendered. Manual errors notify; automatic
-errors are available in Status. A new run clears the previous display. The
+Successful runs render normally. Validated Forth failures can retain successful
+observations from the current snapshot, explicitly marked `before error`.
+Other failed/incomplete results are not rendered. Manual errors notify; automatic
+errors appear as Neovim diagnostics and remain available in Status. A new run clears the previous display. The
 supervisor still captures stdout/stderr in memory, and the 4 MiB limit applies
 to the received result; it does not preemptively bound collection memory. Do not
 use this prototype to execute untrusted programs.
 
 `setup()` accepts `python`, `gforth`, `timeout`, `max_events`, `max_depth`,
-`auto_start`, `inline`, `auto_update`, and `debounce_ms`. Defaults are `python3`,
-`gforth`, 5 seconds, 10,000 events, 256 cells, true, false, true, and 350 ms. Maximum values are 60 seconds, 10,000
+`symbolic`, `auto_start`, `inline`, `auto_update`, and `debounce_ms`. Defaults are `python3`,
+`gforth`, 5 seconds, 10,000 events, 256 cells, true, true, false, true, and 350 ms. Maximum values are 60 seconds, 10,000
 events, 256 cells, and 5000 ms. Options are validated before applying changes;
 repeated setup re-registers commands without duplicates. Executable paths,
 including those with spaces, are resolved before starting the supervisor.
@@ -273,13 +275,35 @@ No keybindings are installed.
 ### Definition bodies and source order
 
 In file mode (`:ForthStackRun` without a word, including automatic runs),
-end-of-line annotations use only top-level observations. Runtime events inside
+runtime end-of-line annotations use top-level observations. Documented definitions
+show independent symbolic annotations instead. Runtime events inside
 compiled words remain available for inline display and Inspect, marked `last
 call`; they are not projected onto definition lines as if they happened when the
 word was declared. A line containing both top-level code and a definition uses
 its latest top-level observation, even if a later call executes its body.
 
-Explicit `:ForthStackRun word` enables body annotations for debugging, with a
-`last call` marker. Selection uses the existing source word metadata from Gforth,
+Explicit `:ForthStackRun word` enables body annotations without symbolic coverage
+for debugging, with a `last call` marker. Selection uses the existing source word metadata from Gforth,
 not a text scan for colons or semicolons. Legacy traces without source word
 metadata retain their existing display behavior.
+
+
+### Symbolic contracts and Neovim diagnostics
+
+Documented definitions are now analyzed independently using their declared input
+names, including when uncalled. Symbolic annotations have a separate namespace
+and take priority over concrete body observations. Real top-level states retain
+priority on mixed lines. `ForthStackAnalyze` performs this analysis once without
+executing Forth. Basic stack/arithmetic operations, fixed declared calls, and
+simple branch joins are supported; other operations stop with a notice.
+See [symbolic analysis and diagnostics](symbolic-analysis.md) for the complete
+supported subset, assumptions, warning semantics, and limits.
+
+The supervisor supplies an additive `error_location` on Forth failures. Active
+before/after frames identify the outer top-level call; compile failures use the
+last compilation site. Neovim validates that location against the current buffer
+before attaching an error diagnostic. Only live Forth failures can enable the
+partial-observation path; JSON imports continue to require a successful complete
+trace. Partial observations retain normal token/value validation and explicit
+markers in end-of-line, inline and Inspect views. Edits, cancellation, filename
+and changedtick checks still prevent stale results from being installed.

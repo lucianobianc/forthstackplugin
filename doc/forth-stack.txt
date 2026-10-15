@@ -19,6 +19,7 @@ HEALTH CHECK                                              *forth-stack-health*
 <
 COMMANDS                                                  *forth-stack-commands*
 
+:ForthStackAnalyze        Analyzes documented definitions once without execution.
 :ForthStackDemo           Opens the bundled example with a recorded trace.
 :ForthStackRun [word]     Without an argument, runs the file. With an argument,
                          also calls that word after loading the file. Both
@@ -35,10 +36,11 @@ COMMANDS                                                  *forth-stack-commands*
 :ForthStackToggle         Hides or shows the loaded data.
 :ForthStackClear          Clears data and cancels the current buffer's run.
 
-In file mode, end-of-line stacks follow top-level literals and calls. Definition
-bodies stay unannotated; declaring a word does not execute it. Inline display and
-Inspect can still reveal a body observation, marked "last call". An explicit
-:ForthStackRun word enables body annotations too, marked "last call".
+In file mode, runtime stacks follow top-level literals and calls. Definitions
+with documented effects show independent symbolic stacks seeded from the input
+names, even without calls. Declaring a word never executes its body. Inline and
+Inspect prefer symbolic states where available; other recorded body observations
+are marked "last call". Set symbolic=false to disable automatic analysis.
 Uncalled definitions do not execute their bodies.
 
 After Run, stacks update after 350 ms without new edits, including in Insert
@@ -55,6 +57,7 @@ CONFIGURATION                                             *forth-stack-setup*
       timeout = 5,
       max_events = 10000,
       max_depth = 256,
+      symbolic = true,
       auto_start = true,
       inline = false,
       auto_update = true,
@@ -112,9 +115,10 @@ Companion-file persistence and interactive label assignment are not implemented.
 Immediate words and the internals of preexisting code have limited coverage.
 Execution uses a private buffer snapshot, without saving. It is not a sandbox.
 The buffer needs a name in an existing directory; includes use files on disk.
-Each update reruns the program, including I/O effects. Only complete successful
-runs are displayed. Failures during automatic updates are recorded in Status;
-manual failures notify. Changes to auxiliary files during a run are not detected.
+Each update reruns the program, including I/O effects. Successful observations
+from a validated Forth failure can remain marked "before error"; status stays
+error. Other failed results are not displayed. Automatic failures appear as
+diagnostics and in Status; manual failures also notify. Changes to auxiliary files during a run are not detected.
 
 JSON: at most 4 MiB, 10000 events, and 256 cells. Integers outside ±(2^53-1)
 are rejected to avoid rounding. Source validation compares tokens/positions,
@@ -144,5 +148,22 @@ Opening a .fs file starts tracing by default, including updates after edits.
 resuming .fs buffers. Set auto_start=false in setup() to start only on command.
 :ForthStackStop pauses the current buffer until :ForthStackRun resumes it.
 The separate auto_update=false option disables updates after edits.
+
+SYMBOLIC ANALYSIS AND ERRORS
+
+Use :ForthStackAnalyze for one analysis without running the file. It pauses
+execution; :ForthStackRun resumes it. Symbolic inputs come from ( in -- out )
+comments following definition names. Analyzed output counts are checked against
+the declaration, then matching positions receive the output names. These are
+symbols, not concrete values. Supported: basic stack/arithmetic/comparison words,
+earlier declared contracts, and simple IF/ELSE/THEN. Unsupported operations,
+loops, recursion, variable effects and non-data stacks stop analysis with a notice.
+Contract depth errors warn. See doc/symbolic-analysis.md for full boundaries.
+
+Actual failures produce Neovim error diagnostics at the responsible call (red in
+standard themes). Use :lua vim.diagnostic.open_float() to read the full message.
+Validated observations before a Forth failure may appear marked "before error";
+execution status stays error. A corrected run clears the error. Editing and Clear
+remove stale results. Failed JSON imports remain rejected.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

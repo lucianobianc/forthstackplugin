@@ -2,6 +2,8 @@ local root = vim.fn.getcwd()
 vim.opt.runtimepath:prepend(root)
 vim.cmd('runtime plugin/forth-stack.lua')
 local plugin = require('forth-stack')
+-- This suite exercises runtime trace import separately from symbolic analysis.
+plugin.setup({ symbolic = false, auto_start = false })
 local display = require('forth-stack.display')
 local trace = require('forth-stack.trace')
 local fixture = root .. '/tests/fixtures/compiled.json'

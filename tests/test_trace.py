@@ -27,6 +27,28 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(digest, hashlib.sha256(self.source.read_bytes()).digest())
         return result
 
+    def test_underflow_location_identifies_outer_call_not_definition(self):
+        result = self.run_source(": can-drive ( age -- flag ) 18 >= ;\ncan-drive\n", entry=None)
+        self.assertEqual(result["forth_code"], -4)
+        self.assertEqual(result["error_location"]["line"], 2)
+        self.assertEqual(result["error_location"]["column_bytes"], 1)
+        self.assertEqual(result["error_location"]["token"], "can-drive")
+        self.assertIn("token '>='", result["diagnostic"])
+        self.assertFalse(result["complete"])
+
+    def test_nested_failure_after_a_successful_call_keeps_outer_source(self):
+        result = self.run_source(": inner 18 >= ; : outer inner ;\n20 outer drop\nouter\n", entry=None)
+        self.assertEqual(result["forth_code"], -4)
+        self.assertEqual(result["error_location"]["line"], 3)
+        self.assertEqual(result["error_location"]["token"], "outer")
+        self.assertTrue(any(e["phase"] == "after" and e["source"]["token"] == "outer"
+                            for e in result["events"]))
+
+    def test_compile_error_location_uses_failing_body_token(self):
+        result = self.run_source(": bad nonexistent-word ;", entry=None)
+        self.assertEqual(result["forth_code"], -13)
+        self.assertEqual(result["error_location"]["token"], "nonexistent-word")
+
     def successful(self, result, stack):
         self.assertEqual(result["status"], "ok", result)
         self.assertTrue(result["complete"])

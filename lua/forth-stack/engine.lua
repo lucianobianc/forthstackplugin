@@ -34,6 +34,7 @@ function M.run(bufnr, entry, on_success, opts)
   local tracer = require('forth-stack.paths').tracer
   check(vim.fn.filereadable(tracer) == 1, 'Tracer not found; reinstall the complete plugin')
   M.stop(bufnr)
+  require('forth-stack.diagnostics').clear(bufnr)
   local run = { tick = vim.api.nvim_buf_get_changedtick(bufnr), filename = filename }
   active[bufnr] = run
   local command = { vim.fn.exepath(config.python), tracer,
@@ -54,6 +55,9 @@ function M.run(bufnr, entry, on_success, opts)
         check(#(result.stdout or '') <= 4 * 1024 * 1024, 'Trace limit: 4 MiB')
         local decoded, trace = pcall(vim.json.decode, result.stdout or '')
         check(decoded and type(trace) == 'table', 'Supervisor failed: ' .. (result.stderr or ''):sub(1, 1000))
+        if not (result.code == 0 and trace.complete and trace.status == 'ok') then
+          require('forth-stack').failure(trace, bufnr)
+        end
         check(result.code == 0 and trace.complete and trace.status == 'ok',
           'Execution failed: ' .. tostring(trace.diagnostic or trace.status)
           .. ' (Forth ' .. tostring(trace.forth_code) .. ')'

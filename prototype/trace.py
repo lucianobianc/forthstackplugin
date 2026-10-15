@@ -103,6 +103,25 @@ def describe_failure(code, sites, events, entry, *, compiling=False):
     return message + (f"; entry: {entry!r}" if entry else "; mode: file")
 
 
+def failure_location(sites, events, *, compiling=False):
+    """Locate the outer call responsible for a nested runtime failure."""
+    if compiling:
+        return sites[max(sites)] if sites else None
+    frames = []
+    for event in events:
+        if event["phase"] == "before":
+            frames.append(event)
+        elif event["phase"] == "after":
+            if frames and frames[-1]["site"] == event["site"]:
+                frames.pop()
+    for frame in frames:
+        if frame["source"]["word"] == "<top-level>":
+            return frame["source"]
+    if frames:
+        return frames[-1]["source"]
+    return events[-1].get("source") if events else None
+
+
 def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
           max_events=10000, max_depth=256, source_text=None):
     source = Path(source).resolve(strict=source_text is None)
@@ -180,6 +199,8 @@ def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
     return {"format_version": 2 if labeled else 1, "status": status, "complete": status == "ok",
             "source": str(source), "entry": entry, "forth_code": result,
             "process_returncode": returncode, "diagnostic": diagnostic,
+            "error_location": failure_location(sites, events, compiling=context.get("compiling", False))
+                if status == "forth_error" else None,
             "sites": sites, "events": events, "stdout": stdout, "stderr": stderr}
 
 

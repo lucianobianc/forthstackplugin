@@ -4,6 +4,28 @@ local states, attached, reloads = {}, {}, {}
 local auto_seen, inline, read_names = {}, {}, {}
 local engine = require('forth-stack.engine')
 local live = require('forth-stack.live')
+local symbolic = require('forth-stack.symbolic')
+local diagnostics = require('forth-stack.diagnostics')
+local analyses = {}
+
+local function analyze(bufnr, runtime)
+  if require('forth-stack.config').options.symbolic then
+    analyses[bufnr] = symbolic.refresh(bufnr, runtime)
+  else symbolic.clear(bufnr); analyses[bufnr] = nil end
+  return analyses[bufnr]
+end
+
+local function histories(bufnr, runtime, line)
+  local source = runtime and runtime[line]
+  local events = analyses[bufnr] and analyses[bufnr].lines[line]
+  if not events then return { [line] = source } end
+  local merged = vim.list_slice(events)
+  -- Symbolic bodies and real call-site states stay distinct on mixed lines.
+  for _, event in ipairs(source or {}) do
+    if not event.compiled then merged[#merged + 1] = event end
+  end
+  return { [line] = merged }
+end
 
 local function close_inspect(state)
   if state and state.window and vim.api.nvim_win_is_valid(state.window) then
@@ -28,6 +50,9 @@ function M.clear(bufnr)
   close_inspect(states[bufnr])
   states[bufnr] = nil
   display.clear(bufnr)
+  symbolic.clear(bufnr)
+  diagnostics.clear(bufnr)
+  analyses[bufnr] = nil
 end
 
 local function watch(bufnr)
@@ -37,6 +62,9 @@ local function watch(bufnr)
       local state = states[target]
       states[target] = nil
       display.clear(target)
+      symbolic.clear(target)
+      analyses[target] = nil
+      vim.schedule(function() if vim.api.nvim_buf_is_valid(target) then diagnostics.clear(target) end end)
       vim.schedule(function() close_inspect(state) end)
       live.changed(target)
     end
@@ -51,7 +79,7 @@ local function watch(bufnr)
         live.disable(detached)
         engine.stop(detached)
         local state = states[detached]
-        states[detached], attached[detached] = nil, nil
+        states[detached], attached[detached], analyses[detached] = nil, nil, nil
         vim.schedule(function()
           close_inspect(state)
           -- :edit! detaches and reloads the same buffer synchronously.
@@ -71,17 +99,28 @@ local function watch(bufnr)
   end
 end
 
-function M.show(trace, bufnr, base)
+function M.show(trace, bufnr, base, partial)
   bufnr = buffer(bufnr)
   -- Validate everything before replacing an existing visualization.
-  local lines = require('forth-stack.trace').lines(trace, bufnr, base or vim.fn.getcwd())
+  local lines = require('forth-stack.trace').lines(trace, bufnr, base or vim.fn.getcwd(), partial)
   engine.stop(bufnr)
   watch(bufnr)
   close_inspect(states[bufnr])
   auto_seen[bufnr] = true
-  states[bufnr] = { lines = lines, visible = true, entry = trace.entry }
-  display.render(bufnr, lines, trace.entry)
+  states[bufnr] = { lines = lines, visible = true, entry = trace.entry, partial = partial }
+  local analysis = analyze(bufnr, lines)
+  display.render(bufnr, lines, trace.entry, partial, analysis)
+  diagnostics.clear(bufnr)
   if bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
+end
+
+function M.analyze(bufnr)
+  bufnr = buffer(bufnr)
+  M.clear(bufnr)
+  watch(bufnr)
+  analyses[bufnr] = symbolic.refresh(bufnr)
+  states[bufnr] = { lines = {}, visible = true }
+  vim.b[bufnr].forth_stack_status = 'analyzed'
 end
 
 function M.load(path, bufnr)
@@ -94,10 +133,16 @@ end
 function M.toggle(bufnr)
   bufnr = buffer(bufnr)
   local state = states[bufnr]
+  if not state and analyses[bufnr] then
+    state = { lines = {}, visible = true }; states[bufnr] = state
+  end
   if not state then return false end
   close_inspect(state)
   state.visible = not state.visible
-  if state.visible then display.render(bufnr, state.lines, state.entry) else display.clear(bufnr) end
+  if state.visible then
+    display.render(bufnr, state.lines, state.entry, state.partial, analyses[bufnr])
+    if analyses[bufnr] then symbolic.render(bufnr, analyses[bufnr], state.lines) end
+  else display.clear(bufnr); symbolic.clear(bufnr) end
   if state.visible and bufnr == vim.api.nvim_get_current_buf() then M.cursor() end
   return state.visible
 end
@@ -105,16 +150,18 @@ end
 function M.cursor(once)
   local bufnr = vim.api.nvim_get_current_buf()
   local state = states[bufnr]
-  if state then
+  if state or analyses[bufnr] then
     local enabled = inline[bufnr]
     if enabled == nil then enabled = require('forth-stack.config').options.inline end
-    display.cursor(bufnr, (once or (state.visible and enabled)) and state.lines or {}, vim.api.nvim_win_get_cursor(0))
+    local position = vim.api.nvim_win_get_cursor(0)
+    local lines = histories(bufnr, state and state.lines, position[1])
+    display.cursor(bufnr, (once or ((not state or state.visible) and enabled)) and lines or {}, position)
   end
 end
 
 function M.inline_once()
   local bufnr = buffer()
-  if states[bufnr] then M.cursor(true); return end
+  if states[bufnr] or analyses[bufnr] then M.cursor(true); return end
   -- A one-shot inspection also works when automatic tracing is disabled.
   auto_seen[bufnr] = true
   watch(bufnr)
@@ -185,11 +232,12 @@ function M.inspect(bufnr, line)
   local position = vim.api.nvim_win_get_cursor(0)
   local explicit_line = line ~= nil
   line = line or position[1]
-  local history = state and state.lines[line]
+  local history = histories(bufnr, state and state.lines, line)[line]
   if not explicit_line and history then
     history = display.at_token(history, position[2]) or history
   end
   if not history then return nil end
+  if not state then state = { lines = {}, visible = true }; states[bufnr] = state end
   close_inspect(state)
   state.window = display.inspect(history)
   return state.window
@@ -210,12 +258,24 @@ end
 function M._refresh(entry, bufnr, opts)
   bufnr = buffer(bufnr)
   watch(bufnr)
+  analyze(bufnr)
   engine.run(bufnr, entry, function(trace, target)
     M.show(trace, target, vim.fn.getcwd())
   end, opts)
   close_inspect(states[bufnr])
   states[bufnr] = nil
   display.clear(bufnr)
+end
+
+function M.failure(trace, bufnr)
+  -- Imported failed traces remain forbidden; only validated live Forth failures
+  -- may expose successful observations from this exact source snapshot.
+  if trace.status == 'forth_error' then
+    local ok = pcall(M.show, trace, bufnr, vim.fn.getcwd(), true)
+    if not ok then display.clear(bufnr) end
+  end
+  if not analyses[bufnr] then analyze(bufnr) end
+  diagnostics.failure(bufnr, trace)
 end
 
 function M.run(entry, bufnr)
@@ -290,6 +350,9 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     close_inspect(states[args.buf])
     states[args.buf] = nil
     display.clear(args.buf)
+    symbolic.clear(args.buf)
+    diagnostics.clear(args.buf)
+    analyses[args.buf] = nil
     live.changed(args.buf)
   end,
 })

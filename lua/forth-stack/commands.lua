@@ -11,6 +11,8 @@ function M.register()
     { nargs = 1, complete = 'file', desc = 'Load a JSON execution trace' })
   command('ForthStackDemo', function() require('forth-stack').demo() end,
     { desc = 'Open the stack demo without executing Forth' })
+  command('ForthStackAnalyze', function() require('forth-stack').analyze() end,
+    { desc = 'Analyze documented definitions once without executing Forth' })
   command('ForthStackRun', function(args) require('forth-stack').run(args.args) end,
     { nargs = '?', desc = 'Run the Forth file or a specific word' })
   command('ForthStackStatus', function()

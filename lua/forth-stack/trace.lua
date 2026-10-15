@@ -13,9 +13,11 @@ local function resolve(path, base)
 end
 
 -- Return only copied, validated events for the requested buffer.
-function M.lines(trace, bufnr, base)
+function M.lines(trace, bufnr, base, partial)
   assert(type(trace) == 'table' and (trace.format_version == 1 or trace.format_version == 2), 'Unsupported trace format')
-  assert(trace.status == 'ok' and trace.complete == true, 'Execution is incomplete or failed')
+  assert((trace.status == 'ok' and trace.complete == true)
+    or (partial and trace.status == 'forth_error' and trace.complete == false),
+    'Execution is incomplete or failed')
   assert(vim.islist(trace.events) and #trace.events <= 10000, 'Event limit: 10000')
   local filename = resolve(vim.api.nvim_buf_get_name(bufnr), vim.fn.getcwd())
   local contents = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -76,6 +78,7 @@ function M.lines(trace, bufnr, base)
           lines[source.line] = lines[source.line] or {}
           table.insert(lines[source.line], {
             seq = event.seq, token = source.token, stack = stack,
+            partial = partial == true,
             compiled = source.word ~= nil and source.word ~= '<top-level>',
             column_bytes = source.column_bytes, elements = elements, phase = event.phase,
             label = event.phase == 'label' and elements[#elements].label or nil,

@@ -78,9 +78,8 @@ Tracing starts automatically for `.fs` files. To start or resume it manually:
 ```
 
 The `16` line shows `[ 16 ]`, and the call to `birthday` shows `[ 17 ]`.
-Definition lines stay unannotated: their bodies execute only when called.
-To explore an operation inside a definition, use inline display or
-`:ForthStackInspect`; its recorded state is marked `last call`.
+Documented definitions show an independent symbolic stack, using the names in
+their stack effect. Real values from later calls never become symbolic inputs.
 
 Stacks appear next to observed operations, with the top on the right. The display
 then updates after a 350 ms pause in typing, including unsaved changes.
@@ -92,12 +91,51 @@ a warning on every keystroke.
 To call a specific word after loading the file, use `:ForthStackRun example`.
 Without an argument, only the code in the file runs; uncalled definitions do not
 execute their bodies. An explicit `:ForthStackRun word` also shows observations
-inside definitions, marked `last call`, for debugging that execution.
+inside definitions without a usable symbolic analysis, marked `last call`,
+for debugging that execution.
 
 Each update runs the program again, including its input and output operations.
 Coverage is still partial: not every Forth operation is traced. See the
 [limitations](doc/neovim-display.md#validation-and-limits) for details about the
 states shown.
+
+## Understand a definition
+
+Document its stack effect to see how it transforms its inputs, even when it is
+never called. The comments on the right illustrate the generated annotations:
+
+```forth
+: can-drive ( age -- allowed )  \ [ age ]  symbolic inputs
+  18                           \ [ age, 18 ]  symbolic
+  >=                           \ [ allowed ]  symbolic
+;
+
+20 can-drive                   \ [ -1 ]  after can-drive
+```
+
+Names before `--` are the starting stack; names after it label the outputs when
+the analyzed depth matches. `( name age id -- status )` starts with
+`[ name, age, id ]`. These are symbols, not guessed numeric values.
+
+Analysis runs automatically with tracing. To analyze definitions once **without
+executing the file**, use `:ForthStackAnalyze`. This pauses ongoing execution;
+`:ForthStackRun` resumes it. Set `symbolic = false` to disable automatic symbolic
+annotations.
+
+Unknown operations, loops, and other unsupported constructs receive an
+“analysis incomplete” notice. Contract mismatches receive a warning. See
+[analysis rules and limits](doc/symbolic-analysis.md).
+
+## See errors in the code
+
+Calling `can-drive` with an empty stack marks the call with a red **Stack
+underflow** diagnostic. Other execution failures also appear as Neovim
+diagnostics; use `:lua vim.diagnostic.open_float()` to read the full message.
+
+Diagnostics update after the typing pause and clear when the code is corrected.
+Valid observations before a Forth error may remain visible, marked `before
+error`; they are not a complete execution result. `:ForthStackStatus` still
+shows full execution details.
 
 ## Explore a line with the cursor
 
@@ -113,8 +151,9 @@ its final stack. Nothing is inserted into your source.
 For `10 20 +`, the cursor reveals `[ 10 ]` over `10`, `[ 10, 20 ]` over `20`,
 and `[ 30 ]` over `+`. `:ForthStackInspect` also uses the token under the cursor.
 
-This shows recorded execution. Unexecuted tokens and whitespace have no inline
-stack; loops and repeated calls show the most recent execution of that token.
+Inside documented definitions, inline display and Inspect use symbolic states.
+Other tokens use recorded execution: unexecuted tokens and whitespace have no
+runtime stack; loops and repeated calls show the most recent execution.
 Cursor annotations are shared between windows displaying the same buffer.
 
 ## Choose automatic behavior
@@ -170,6 +209,7 @@ See [label rules and limitations](doc/labels.md) and `examples/labels.fs`.
 | --- | --- |
 | `:ForthStackDemo` | Opens the demo |
 | `:ForthStackRun` | Runs the file and follows edits |
+| `:ForthStackAnalyze` | Analyzes documented definitions once without execution |
 | `:ForthStackAutoToggle` | Toggles automatic `.fs` tracing for the session |
 | `:ForthStackInline` | Shows the cursor token stack once |
 | `:ForthStackInlineToggle` | Toggles inline stacks in this buffer |
