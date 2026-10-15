@@ -1,25 +1,23 @@
 # forthstackplugin
 
-Plugin Neovim para observar a pilha de programas Forth. Mostra valores ao lado das
-linhas e permite executar uma palavra explicitamente com Gforth, sem modificar o
-fonte. Ainda experimental: identidades, etiquetas e persistência estão pendentes.
+Veja a pilha do seu programa Forth ao lado do código, dentro do Neovim.
+Depois de iniciar uma execução, os valores se atualizam enquanto você escreve,
+sem precisar salvar o arquivo.
 
-## Teste sem instalar
+O plugin está em desenvolvimento. A visualização e a execução com Gforth já
+funcionam; etiquetas para os valores ainda não estão disponíveis.
 
-Se você já clonou o repositório, atualize com `git pull` e, na raiz dele, execute:
+## Requisitos
 
-```sh
-nvim -u examples/minimal-init.lua -c ForthStackDemo
-```
+- **Neovim 0.10 ou superior.**
+- **Python 3 e Gforth** para executar seus programas.
 
-Isso abre uma configuração mínima e a demonstração, sem modificar seu `init.lua`.
+A demonstração precisa apenas do Neovim. A execução foi testada em Linux com
+Gforth 0.7.3.
 
 ## Instalação
 
-Requer **Neovim 0.10 ou superior** (validado em 0.10.4). Não há etapa de build.
-Para experimentar a demonstração, basta o Neovim.
-
-### lazy.nvim
+### Com lazy.nvim
 
 Adicione à sua lista de plugins e execute `:Lazy sync`:
 
@@ -32,14 +30,9 @@ Adicione à sua lista de plugins e execute `:Lazy sync`:
 }
 ```
 
-O campo `main` identifica o módulo Lua correto para a configuração automática.
-Também é possível carregar sob demanda: substitua `lazy = false` por
-`cmd = { 'ForthStackDemo', 'ForthStackLoad', 'ForthStackRun', 'ForthStackStop',
-'ForthStackInspect', 'ForthStackToggle', 'ForthStackClear', 'ForthStackStatus' }`.
+### Sem gerenciador de plugins (Linux)
 
-### Packages nativos do Neovim (Linux)
-
-Sem gerenciador de plugins, execute no terminal:
+Execute no terminal:
 
 ```sh
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/pack/plugins/start"
@@ -47,46 +40,30 @@ git clone https://github.com/lucianobianc/forthstackplugin.git \
   "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/pack/plugins/start/forthstackplugin"
 ```
 
-Reabra o Neovim normalmente. Os comandos são registrados automaticamente; não é
-necessário alterar `init.lua` nem executar `:runtime`. Para atualizar, execute
-`git pull` na pasta instalada. Com `NVIM_APPNAME` personalizado, use a pasta
-exibida por `:echo stdpath('data')` seguida de `/site/pack/plugins/start/`.
+Reinicie o Neovim normalmente. Não é necessário alterar seu `init.lua`.
+Se os comandos não aparecerem, confira se sua configuração permite carregar
+plugins (`:set loadplugins?`) e se a pasta instalada está no `packpath`.
 
-Para carregar uma cópia local em uma sessão já aberta:
+## Primeiro teste
 
-```lua
-vim.opt.runtimepath:prepend('/caminho/absoluto/forthstackplugin')
-require('forth-stack').setup()
-```
-
-`setup()` é opcional em instalações normais e pode ser chamado mais de uma vez.
-Esse caminho explícito também funciona com `nvim -u NONE`, que desativa a carga
-automática de plugins. Só adicionar ao runtimepath depois da inicialização não
-executa retroativamente os arquivos `plugin/`.
-
-## Experimente agora
-
-Depois de instalar, execute:
+Dentro do Neovim, execute:
 
 ```vim
 :ForthStackDemo
 ```
 
-Abre o exemplo incluído e exibe um registro pronto. Não depende do diretório
-atual, de Python ou de Gforth. Posicione o cursor em uma linha anotada e execute
-`:ForthStackInspect` para ver a pilha. Use `:ForthStackToggle` para ocultar/mostrar
-e `:ForthStackClear` para limpar.
+Um exemplo será aberto com as pilhas ao lado das linhas. Para ver os detalhes,
+coloque o cursor em uma linha anotada e execute `:ForthStackInspect`.
 
-## Execute seu programa
+Já clonou o projeto e quer experimentar sem instalar? Na raiz dele, execute:
 
-Para execução real, instale **Python 3 e Gforth** no PATH. Validado em Linux
-x86-64 com Gforth 0.7.3. Confira a instalação com:
-
-```vim
-:checkhealth forth-stack
+```sh
+nvim -u examples/minimal-init.lua -c ForthStackDemo
 ```
 
-Abra um arquivo `.fs` e escolha uma vez a palavra de entrada:
+## Usando no seu código
+
+Abra um arquivo Forth, por exemplo `exemplo.fs`:
 
 ```forth
 : exemplo
@@ -95,79 +72,51 @@ Abra um arquivo `.fs` e escolha uma vez a palavra de entrada:
 ;
 ```
 
+Execute uma vez:
+
 ```vim
 :ForthStackRun exemplo
 ```
 
-Depois disso, **as pilhas se atualizam enquanto você escreve**, após uma pausa
-de 350 ms na digitação, inclusive sem salvar e durante o modo de inserção. O
-plugin executa uma cópia temporária do buffer; não grava seu arquivo. Cada nova
-edição cancela a execução anterior e somente resultados do texto atual aparecem.
-A execução acontece em segundo plano, sem bloquear o editor.
+As pilhas aparecem ao lado das operações observadas. O topo da pilha fica à
+direita. A partir daí, a visualização se atualiza após uma pausa de 350 ms na
+digitação, mesmo com alterações não salvas.
 
-Quando o código fica temporariamente incompleto, as pilhas antigas somem; o
-plugin aguarda a próxima edição e tenta novamente, sem abrir notificações a cada
-erro de digitação. Consulte `:ForthStackStatus` para ver o estado e o último erro.
-Erros de uma execução manual continuam sendo notificados.
+Use `:ForthStackStop` para pausar. Execute `:ForthStackRun exemplo` novamente
+para retomar. Se o código estiver incompleto, o plugin aguarda a próxima edição
+e tenta de novo, sem abrir avisos a cada tecla.
 
-`:ForthStackStop` pausa a atualização automática do buffer atual; outro
-`:ForthStackRun exemplo` retoma. `:ForthStackClear` também pausa e limpa os dados.
-Renomear ou fechar o buffer desativa a atualização. Um arquivo novo precisa apenas
-ter nome em uma pasta existente (`:file /caminho/novo.fs`); não precisa ser salvo.
-Abrir um arquivo, carregar JSON ou usar a demonstração não arma execução automática.
+Cada atualização executa novamente o programa, incluindo suas operações de
+entrada e saída. A cobertura ainda é parcial: nem toda operação Forth é
+acompanhada. Consulte as [limitações](doc/neovim-display.md#validação-e-limites)
+para entender quais estados são exibidos.
 
-Cada atualização reexecuta o arquivo e a palavra de entrada em um processo novo;
-efeitos de I/O do seu programa também se repetem. Arquivos incluídos são lidos do
-disco; alterações ainda não salvas em outros buffers não entram nesta execução.
+## Comandos úteis
 
-Configuração opcional no `opts` do lazy.nvim ou via Lua:
+| Comando | O que faz |
+| --- | --- |
+| `:ForthStackDemo` | Abre a demonstração |
+| `:ForthStackRun palavra` | Executa e acompanha as edições |
+| `:ForthStackStop` | Pausa o acompanhamento |
+| `:ForthStackInspect` | Mostra detalhes da pilha na linha do cursor |
+| `:ForthStackToggle` | Oculta ou mostra as pilhas |
+| `:ForthStackClear` | Limpa as pilhas e pausa o acompanhamento |
+| `:ForthStackStatus` | Mostra o estado e o último erro |
 
-```lua
-require('forth-stack').setup({
-  python = 'python3',
-  gforth = 'gforth',
-  timeout = 5,        -- segundos, máximo 60
-  max_events = 10000, -- máximo 10000
-  max_depth = 256,    -- máximo 256 células
-  auto_update = true, -- após o primeiro ForthStackRun no buffer
-  debounce_ms = 350,  -- pausa após digitação, entre 1 e 5000 ms
-})
+Se algo não funcionar, comece por:
+
+```vim
+:checkhealth forth-stack
 ```
 
-`python` e `gforth` recebem nomes de executáveis ou caminhos completos, não
-comandos com argumentos de shell. Não são impostos atalhos globais. Use `auto_update = false` para execução
-somente manual; execute novamente `ForthStackRun` após mudar essa opção.
+## Saiba mais
 
-## Comandos
+- [Configuração, registros externos e limitações](doc/neovim-display.md)
+- [Investigação da instrumentação no Gforth](doc/gforth-instrumentation.md)
+- [Especificação do projeto](SPEC.md)
 
-| Comando | Função |
-| --- | --- |
-| `:ForthStackDemo` | Abrir exemplo com registro incluído |
-| `:ForthStackRun palavra` | Executar o buffer e ativar atualização automática |
-| `:ForthStackStop` | Pausar atualização e interromper execução do buffer atual |
-| `:ForthStackStatus` | Mostrar estado e último erro do buffer |
-| `:ForthStackLoad arquivo.json` | Carregar registro externo |
-| `:ForthStackInspect` | Inspecionar última observação na linha do cursor |
-| `:ForthStackToggle` | Ocultar/mostrar visualização |
-| `:ForthStackClear` | Limpar visualização e cancelar execução |
-
-## Limitações e desenvolvimento
-
-Os estados são observados depois dos tokens sondados; não representam
-necessariamente o estado ao final de cada linha. Palavras imediatas e trechos
-preexistentes têm cobertura limitada. São exibidos apenas registros completos e
-inteiros representáveis exatamente pelo Lua (±(2^53−1)). A validação de um registro
-externo compara posições e tokens, sem comprovar igualdade integral das fontes.
-A execução não fornece sandbox para código não confiável. Os detalhes estão na
-[investigação do Gforth](doc/gforth-instrumentation.md) e no
-[guia da visualização e execução](doc/neovim-display.md).
-
-Com `python3`, `gforth` e `nvim` no PATH, na raiz do projeto:
+Para executar os testes, com Neovim, Python 3 e Gforth disponíveis no terminal:
 
 ```sh
 bash tests/run.sh
 ```
-
-A suíte cobre o protótipo, a visualização, uma instalação nativa em ambiente
-isolado, configuração tardia, execução assíncrona, cancelamento e timeout.
-A especificação e as fases planejadas estão em [SPEC.md](SPEC.md).
