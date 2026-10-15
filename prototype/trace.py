@@ -9,8 +9,14 @@ import signal
 import sys
 import tempfile
 
+# Also support importlib-based consumers that do not add this directory to sys.path.
+import importlib.util
+_label_spec = importlib.util.spec_from_file_location("forth_stack_labels", Path(__file__).with_name("labels.py"))
+_labels = importlib.util.module_from_spec(_label_spec)
+_label_spec.loader.exec_module(_labels)
+
 ENGINE = Path(__file__).with_name("trace.fs")
-PHASES = {0: "before", 1: "after", 2: "entry", 3: "return"}
+PHASES = {0: "before", 1: "after", 2: "entry", 3: "return", 4: "label", 5: "opaque"}
 
 
 def parse_trace(raw, context=None):
@@ -35,6 +41,17 @@ def parse_trace(raw, context=None):
                            "coverage": fields[7]}
             if fields[7] not in ("probe", "opaque"):
                 raise ValueError("invalid coverage marker")
+        elif fields[0] == "O" and len(fields) == 3:
+            site = int(fields[1])
+            if site not in sites:
+                raise ValueError("operation references an unknown site")
+            sites[site]["operation"] = fields[2]
+        elif fields[0] == "L" and len(fields) in (2, 3):
+            site = int(fields[1])
+            label = bytes.fromhex(fields[2]).decode("utf-8") if len(fields) == 3 else ""
+            if site not in sites or not _labels.LABEL_NAME.fullmatch(label):
+                raise ValueError("Invalid LABEL name: use 1–64 letters, digits, underscores or hyphens; start with a letter or underscore")
+            sites[site]["label"] = label
         elif fields[0] == "E" and len(fields) >= 5:
             seq, site, phase, depth = map(int, fields[1:5])
             stack = list(map(int, fields[5:]))
@@ -42,6 +59,8 @@ def parse_trace(raw, context=None):
                     or (site == 0) != (phase in (2, 3))
                     or (site != 0 and site not in sites)):
                 raise ValueError("invalid event framing")
+            if phase == 4 and "label" not in sites[site]:
+                raise ValueError("label event has no annotation")
             events.append({"seq": seq, "site": site, "phase": PHASES[phase],
                            "source": sites.get(site), "stack": stack})
         elif fields[0] == "X" and len(fields) in (2, 3):
@@ -147,7 +166,18 @@ def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
         diagnostic = "Gforth exited with code " + str(returncode)
         if stderr.strip():
             diagnostic += ": " + stderr.strip()[:1500]
-    return {"format_version": 1, "status": status, "complete": status == "ok",
+    labeled = any("label" in site for site in sites.values())
+    if not labeled:
+        # Keep version 1 traces compatible: barriers only matter to identity tracking.
+        events = [e for e in events if e["phase"] != "opaque"]
+        for seq, event in enumerate(events):
+            event["seq"] = seq
+    if labeled:
+        try:
+            _labels.enrich(events)
+        except ValueError as error:
+            status, diagnostic = "label_error", str(error)
+    return {"format_version": 2 if labeled else 1, "status": status, "complete": status == "ok",
             "source": str(source), "entry": entry, "forth_code": result,
             "process_returncode": returncode, "diagnostic": diagnostic,
             "sites": sites, "events": events, "stdout": stdout, "stderr": stderr}

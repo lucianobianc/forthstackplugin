@@ -1,6 +1,6 @@
 # Phase 2 — Neovim visualization
 
-The Lua layer displays version 1 JSON traces from the Gforth prototype using
+The Lua layer displays version 1 and 2 JSON traces from the Gforth prototype using
 extmarks and virtual text. Tested with Neovim 0.10.4 on Linux x86-64. It requires
 no external Lua packages, mandatory configuration, or global shortcuts. Execution
 starts with `ForthStackRun` and then updates automatically as you edit.
@@ -42,7 +42,7 @@ directory; the prototype usually produces absolute paths. Symbolic paths are
 normalized to their real location when possible. Session-boundary data is not
 artificially assigned to a source line.
 
-Each line receives its **latest `after` observation**, in chronological order:
+Each line receives its **latest `after` or `label` observation**, in chronological order:
 
 ```text
   1+                    [ 16 ]  after 1+
@@ -92,7 +92,8 @@ prototype can produce 64-bit cells; displaying all of them requires a protocol
 extension for lossless large integers. Values are never silently rounded.
 
 Explicit asynchronous execution is available through `ForthStackRun`, described
-below. Identity management, labels, and persistence are not implemented.
+below. Basic identities and source-comment labels are implemented; see
+[labels.md](labels.md). Companion-file persistence is not implemented.
 Instrumentation retains the limitations in
 [gforth-instrumentation.md](gforth-instrumentation.md).
 
@@ -237,3 +238,13 @@ The CLI also accepts an omitted word:
 `python3 prototype/trace.py examples/top-level.fs`.
 With `--input`, file mode supplies values before loading; word mode supplies them
 after loading and before the additional call.
+
+## Label display
+
+`( LABEL: age )` assigns a label to the runtime top element without changing
+Forth execution. Version 2 traces carry numeric stacks plus element identities,
+labels, and copy origins. Virtual text renders `age:17`; annotation observations
+use the suffix `label age`. Inspection also lists IDs and copy origins. Imported
+label traces must match the current annotation text. Existing version 1 traces
+remain supported without identity data. See [labels.md](labels.md) for rules,
+syntax, conservative barriers, and limitations.

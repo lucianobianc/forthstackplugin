@@ -26,3 +26,4 @@ XDG_CACHE_HOME="$trace_directory/cache" \
     -c "lua dofile(vim.env.FORTH_STACK_ROOT .. '/tests/test_quickstart.lua')"
 nvim --headless -u NONE -i NONE -l tests/test_live.lua
 nvim --headless -u NONE -i NONE -l tests/test_filemode.lua
+nvim --headless -u NONE -i NONE -l tests/test_labels.lua

@@ -71,7 +71,9 @@ Before: [ 15 ]
 After:  [ AGE: 15 ]
 ```
 
-Labels are assigned through a Neovim interaction without changing the source.
+The first implementation assigns labels through ordinary single-line
+`( LABEL: name )` Forth comments. These do not change Forth execution semantics.
+Interactive assignment without changing source remains a possible later interface.
 A label conceptually identifies an element, not merely its position or number.
 
 ### 2.3 Automatic label propagation
@@ -269,14 +271,16 @@ schemes.
 
 ## 6. Metadata persistence
 
-Labels and code-related preferences should be stored in separate files.
+The initial label implementation persists annotations directly in ordinary Forth
+comments supplied by the user. The plugin does not write the source. Separate
+metadata files remain a future option for interactive labels and preferences:
 
 ```text
 program.fs
 program.stack.json
 ```
 
-The `.fs` file must remain untouched by the plugin. The companion file may contain:
+The `.fs` file must remain untouched by the plugin (users may edit label comments). The companion file may contain:
 
 - User-assigned labels.
 - References to element creation locations.
@@ -287,7 +291,8 @@ Execution states need not be persisted initially.
 
 ### 6.1 Associating labels with code
 
-Storing only line numbers or temporary execution IDs is insufficient. The system
+For future external metadata, storing only line numbers or temporary execution
+IDs is insufficient. Current comment annotations are parsed again each run. The system
 must provide a strategy to find label assignment locations again in later runs.
 This may combine file location, syntactic context, and operation identification.
 

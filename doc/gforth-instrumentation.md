@@ -125,7 +125,7 @@ top-level interpreted lines.
 
 ## Protocol and event meaning
 
-The supervisor returns JSON containing `format_version: 1`, `sites`, `events`,
+The supervisor returns JSON containing `format_version` (1 or 2), `sites`, `events`,
 `status`, `complete`, `forth_code`, `process_returncode`, `stdout`, `stderr`, and
 `diagnostic`. `complete: true` means execution ended normally, not that every
 primitive or immediate word was instrumented.
@@ -144,7 +144,9 @@ Each event contains `seq`, `site`, `phase`, `source`, and `stack`:
 
 `sites` also includes unexecuted tokens and opaque immediates. Missing events do
 not imply an error. Sites and events are linked by site ID, not numeric stack
-value. There are no instance IDs, labels, or provenance yet.
+value. Version 1 has no identity data. Annotated programs now use the version 2
+extension described in [labels.md](labels.md), with instance IDs, labels,
+copy origins, label observations, and conservative barriers.
 
 The internal channel uses `M` lines (metadata with hex-encoded strings), `E`
 (event: sequence/site/phase/depth/cells), and `X` (`catch` result). `X` accepts a
@@ -226,3 +228,14 @@ The file loads once per session. In word mode, top-level code's stack effects
 remain before the additional call. Uncalled definitions produce no execution
 events. Compilation errors restore the outer parser before process termination;
 incomplete definitions are reported as control errors (-22).
+
+## Label extension
+
+Ordinary single-line `( LABEL: name )` comments are recognized at the actual
+parser location. A label probe is compiled in definitions or observed directly
+at the top level, without consuming/changing the original comment parser's input.
+Gforth emits original-operation descriptors and annotation metadata; Python builds
+the parallel identity stack. Unknown immediate compilation semantics receive a
+runtime barrier, apart from recognized native syntax/control tokens. Labels and
+identity snapshots, versioning, rules, and remaining limits are documented in
+[labels.md](labels.md).

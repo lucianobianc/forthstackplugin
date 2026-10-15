@@ -14,7 +14,7 @@ end
 
 -- Return only copied, validated events for the requested buffer.
 function M.lines(trace, bufnr, base)
-  assert(type(trace) == 'table' and trace.format_version == 1, 'Unsupported trace format')
+  assert(type(trace) == 'table' and (trace.format_version == 1 or trace.format_version == 2), 'Unsupported trace format')
   assert(trace.status == 'ok' and trace.complete == true, 'Execution is incomplete or failed')
   assert(vim.islist(trace.events) and #trace.events <= 10000, 'Event limit: 10000')
   local filename = resolve(vim.api.nvim_buf_get_name(bufnr), vim.fn.getcwd())
@@ -28,8 +28,35 @@ function M.lines(trace, bufnr, base)
       assert(integer(value, -safe_integer), 'Cell outside Lua’s exact integer range (±2^53−1)')
       stack[#stack + 1] = value
     end
-    assert(vim.tbl_contains({ 'before', 'after', 'entry', 'return' }, event.phase), 'Invalid phase')
-    if event.phase == 'before' or event.phase == 'after' then
+    assert(vim.tbl_contains({ 'before', 'after', 'entry', 'return', 'label', 'opaque' }, event.phase), 'Invalid phase')
+    local elements
+    if event.elements ~= nil then
+      assert(vim.islist(event.elements) and #event.elements == #stack, 'Invalid identity stack')
+      elements = {}
+      local ids = {}
+      for i, element in ipairs(event.elements) do
+        assert(type(element) == 'table' and integer(element.id, 1) and not ids[element.id]
+          and element.value == stack[i], 'Invalid element identity or value')
+        ids[element.id] = true
+        local label = element.label
+        if label == vim.NIL then label = nil end
+        assert(label == nil or (type(label) == 'string' and #label <= 64
+          and label:match('^[A-Za-z_][A-Za-z0-9_-]*$')), 'Invalid element label')
+        local origin = element.origin
+        if origin == vim.NIL then origin = nil end
+        assert(origin == nil or (integer(origin, 1) and origin ~= element.id), 'Invalid element origin')
+        elements[i] = { id = element.id, value = element.value, label = label, origin = origin }
+      end
+    end
+    if trace.format_version == 2 then assert(elements ~= nil, 'Version 2 trace requires identities') end
+    if event.phase == 'label' or event.phase == 'opaque' then
+      assert(trace.format_version == 2, 'Identity events require trace version 2')
+    end
+    if event.phase == 'label' then
+      assert(elements ~= nil and #elements > 0 and elements[#elements].label ~= nil,
+        'Label observation has no labeled element')
+    end
+    if event.phase == 'before' or event.phase == 'after' or event.phase == 'label' then
       local source = event.source
       assert(type(source) == 'table', 'Event has no source location')
       if resolve(source.file, base) == filename then
@@ -40,11 +67,16 @@ function M.lines(trace, bufnr, base)
         local text = contents[source.line]
         assert(text:sub(source.column_bytes, source.column_bytes + #source.token - 1) == source.token,
           'Source differs from the trace; generate a new trace')
-        if event.phase == 'after' then
+        if event.phase == 'label' then
+          assert(text:sub(source.column_bytes):match('^%(%s*LABEL:%s*([A-Za-z_][A-Za-z0-9_-]*)%s*%)')
+            == elements[#elements].label, 'Label comment differs from the trace; generate a new trace')
+        end
+        if event.phase == 'after' or event.phase == 'label' then
           lines[source.line] = lines[source.line] or {}
           table.insert(lines[source.line], {
             seq = event.seq, token = source.token, stack = stack,
-            column_bytes = source.column_bytes,
+            column_bytes = source.column_bytes, elements = elements, phase = event.phase,
+            label = event.phase == 'label' and elements[#elements].label or nil,
           })
         end
       end

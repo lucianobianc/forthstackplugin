@@ -27,7 +27,7 @@ COMMANDS                                                  *forth-stack-commands*
 :ForthStackStatus         Opens the status and full error in a text window.
                          Use q to close or :write /tmp/forth-stack-error.txt
                          to save the message.
-:ForthStackLoad {json}    Loads an external version 1 JSON trace.
+:ForthStackLoad {json}    Loads an external version 1 or 2 JSON trace.
 :ForthStackInspect        Inspects the latest observation on the cursor line.
 :ForthStackToggle         Hides or shows the loaded data.
 :ForthStackClear          Clears data and cancels the current buffer's run.
@@ -78,12 +78,28 @@ inspect(bufnr?, line?)  Returns an inspection window, or nil without observation
 
 The default buffer is the current one. The API raises errors; commands notify.
 
+LABELS                                                    *forth-stack-labels*
+
+Use a normal single-line Forth comment to label the top stack element: >
+    17 ( LABEL: age )
+    dup 1+
+<
+The result is [ age:17, age:18 ]. Copies have distinct IDs and retain their
+source label. Inspect shows copy origins. Labels follow dup, over, swap, rot,
+nip, tuck, drop, and unit increment/decrement (1+, 1-, 1 +, 1 -).
+Comparisons create unlabeled results; unsupported transformations may clear
+labels. Names must match [A-Za-z_][A-Za-z0-9_-]{0,63}. A label on an empty stack
+reports an error. Labels persist in source comments, not in a separate file.
+
+See doc/labels.md and examples/labels.fs for the full example and limitations.
+
 LIMITATIONS                                               *forth-stack-limits*
 
 Virtual text shows the last after observation on each line, with the top on the
 right. The suffix 'after TOKEN' does not promise the state at the end of the
 whole line. Per-line history is retained; occurrence navigation is not available.
-There is no value identity model, labeling, or persistence yet.
+Basic identities and labels are supported through ( LABEL: name ) comments.
+Companion-file persistence and interactive label assignment are not implemented.
 
 Immediate words and the internals of preexisting code have limited coverage.
 Execution uses a private buffer snapshot, without saving. It is not a sandbox.

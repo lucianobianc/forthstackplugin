@@ -12,7 +12,7 @@ function M.check()
     }) end
   end
   local paths = require('forth-stack.paths')
-  for _, key in ipairs({ 'tracer', 'example', 'fixture' }) do
+  for _, key in ipairs({ 'tracer', 'label_tracker', 'example', 'fixture' }) do
     if vim.fn.filereadable(paths[key]) == 1 then vim.health.ok(key .. ' available')
     else vim.health.error('Missing file: ' .. paths[key], { 'Reinstall the complete plugin.' }) end
   end

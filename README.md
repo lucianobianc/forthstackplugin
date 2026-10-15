@@ -3,8 +3,8 @@
 See your Forth program's stack next to the code in Neovim. Once you start a run,
 values update as you type, without saving the file.
 
-The plugin is under development. Stack visualization and Gforth execution work;
-labels for individual values are not available yet.
+The plugin is under development. Live stack visualization, Gforth execution,
+and basic value labels are available.
 
 ## Requirements
 
@@ -95,6 +95,33 @@ Each update runs the program again, including its input and output operations.
 Coverage is still partial: not every Forth operation is traced. See the
 [limitations](doc/neovim-display.md#validation-and-limits) for details about the
 states shown.
+
+## Label your values
+
+Use an ordinary Forth comment to label the top of the stack:
+
+```forth
+: birthday 1+ ;
+: can-drive 18 >= ;
+
+17 ( LABEL: age )
+dup can-drive drop
+dup birthday
+can-drive
+```
+
+Run `:ForthStackRun`. You will see `age:17`; after `dup birthday`, the stack is
+`[ age:17, age:18 ]`. The final comparison leaves `[ age:17, -1 ]`: its result
+does not inherit `age`.
+
+Labels follow `dup`, `over`, `swap`, `rot`, `nip`, `tuck`, and `drop`. Increment
+and decrement preserve them, including `1+`, `1-`, `1 +`, and `1 -`. General
+arithmetic and unsupported operations use conservative rules and may remove
+labels. Labels stay in your source comments; no companion file is needed.
+
+Names use letters, digits, underscores, or hyphens, start with a letter or
+underscore, and have at most 64 characters. Keep each label comment on one line.
+See [label rules and limitations](doc/labels.md) and `examples/labels.fs`.
 
 ## Useful commands
 

@@ -1,9 +1,12 @@
 local M = {}
 M.namespace = vim.api.nvim_create_namespace('forth-stack')
 
-function M.stack(values)
+function M.stack(values, elements)
   local text = {}
-  for _, value in ipairs(values) do text[#text + 1] = string.format('%.0f', value) end
+  for i, value in ipairs(values) do
+    local label = elements and elements[i] and elements[i].label
+    text[#text + 1] = (label and (label .. ':') or '') .. string.format('%.0f', value)
+  end
   return #text == 0 and '[ ]' or '[ ' .. table.concat(text, ', ') .. ' ]'
 end
 
@@ -19,7 +22,8 @@ function M.render(bufnr, lines)
   for line, history in pairs(lines) do
     local last = history[#history]
     vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
-      virt_text = {{ M.stack(last.stack) .. '  after ' .. last.token, 'ForthStackValue' }},
+      virt_text = {{ M.stack(last.stack, last.elements) .. '  '
+        .. (last.phase == 'label' and ('label ' .. last.label) or ('after ' .. last.token)), 'ForthStackValue' }},
       virt_text_pos = 'eol',
     })
   end
@@ -27,9 +31,18 @@ end
 
 function M.inspect(history)
   local last = history[#history]
-  local text = { 'Stack: ' .. M.stack(last.stack), 'After: ' .. last.token,
+  local text = { 'Stack: ' .. M.stack(last.stack, last.elements),
+    last.phase == 'label' and ('Label: ' .. last.label) or ('After: ' .. last.token),
     'Event: ' .. last.seq, 'Observations on this line: ' .. #history,
     'Top on the right; value types are not inferred.' }
+  if last.elements then
+    text[#text + 1] = ''
+    for i, element in ipairs(last.elements) do
+      text[#text + 1] = string.format('%d. id=%d%s%s', i, element.id,
+        element.label and (' label=' .. element.label) or '',
+        element.origin and (' copied from id=' .. element.origin) or '')
+    end
+  end
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, text)
   vim.bo[buf].modifiable = false
@@ -38,7 +51,7 @@ function M.inspect(history)
   for _, line in ipairs(text) do width = math.max(width, vim.fn.strdisplaywidth(line)) end
   return vim.api.nvim_open_win(buf, false, {
     relative = 'cursor', row = 1, col = 0, style = 'minimal', border = 'single',
-    width = math.min(width, math.max(1, vim.o.columns - 4)), height = #text,
+    width = math.min(width, math.max(1, vim.o.columns - 4)), height = math.min(#text, math.max(1, vim.o.lines - 6)),
   })
 end
 
