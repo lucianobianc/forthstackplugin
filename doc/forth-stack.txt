@@ -1,0 +1,86 @@
+*forth-stack.txt*  Visualização experimental da pilha Forth no Neovim
+
+Requer Neovim >= 0.10. Testado em Linux x86-64, Neovim 0.10.4, Gforth 0.7.3.
+
+INÍCIO RÁPIDO                                              *forth-stack*
+
+Instale lucianobianc/forthstackplugin usando packages nativos ou um gerenciador.
+Em packages start, os comandos são carregados automaticamente, sem setup.
+A demonstração não precisa de Python ou Gforth: >
+    :ForthStackDemo
+<
+Para executar de verdade, instale Python 3 e Gforth no PATH, salve seu arquivo
+Forth e execute uma palavra definida nele: >
+    :ForthStackRun exemplo
+<
+DIAGNÓSTICO                                                *forth-stack-health*
+>
+    :checkhealth forth-stack
+<
+COMANDOS                                                  *forth-stack-commands*
+
+:ForthStackDemo           Abre exemplo incluído com um registro pronto.
+:ForthStackRun {palavra}  Executa o arquivo salvo e a palavra em segundo plano.
+:ForthStackStop           Cancela execução do buffer atual.
+:ForthStackLoad {json}    Carrega registro JSON externo de versão 1.
+:ForthStackInspect        Inspeciona última observação na linha do cursor.
+:ForthStackToggle         Oculta ou mostra os dados carregados.
+:ForthStackClear          Limpa os dados e cancela execução do buffer atual.
+
+Alterações de texto e renomeações invalidam os registros e cancelam execução.
+Nenhum comando escreve o buffer ou impõe atalhos globais.
+
+CONFIGURAÇÃO                                              *forth-stack-setup*
+>
+    require('forth-stack').setup({
+      python = 'python3',
+      gforth = 'gforth',
+      timeout = 5,
+      max_events = 10000,
+      max_depth = 256,
+    })
+<
+setup() é opcional em packages normais, registra os comandos e pode ser repetido.
+Para uma cópia adicionada ao runtimepath depois da inicialização, chame setup().
+Com lazy.nvim, use main = 'forth-stack' e opts = {} no spec do plugin.
+
+python e gforth devem ser nomes ou caminhos de executáveis, sem argumentos.
+Os máximos permitidos são 60 segundos, 10000 eventos e 256 células por snapshot.
+
+API                                                       *forth-stack-api*
+
+setup(opts?)             Configura e registra comandos.
+demo()                   Abre o exemplo com dados incluídos.
+run(entry, bufnr?)        Executa uma palavra; o buffer deve estar salvo.
+stop(bufnr?)             Cancela execução; retorna true se havia uma ativa.
+load(path, bufnr?)        Lê, valida e exibe um registro.
+show(trace, bufnr?, base?) Exibe uma tabela de registro já decodificada.
+clear(bufnr?)            Cancela execução e remove os dados.
+toggle(bufnr?)           Retorna a nova visibilidade ou false sem registro.
+inspect(bufnr?, line?)   Retorna janela de inspeção ou nil sem observação.
+
+O buffer padrão é o atual. A API propaga erros; comandos mostram notificações.
+
+LIMITAÇÕES                                                *forth-stack-limits*
+
+Valores no virtual text são da última observação after por linha, com topo à
+direita. O sufixo 'após TOKEN' não promete estado ao final de toda a linha.
+Histórico por linha é retido; navegação por ocorrência ainda não está disponível.
+Não há identidade de valores, etiquetas ou persistência.
+
+Palavras imediatas e o interior de código preexistente têm cobertura limitada.
+A execução requer o fonte salvo, carrega o arquivo normalmente e não é sandbox.
+Somente execuções completas são exibidas; falhas são notificadas. Alterações em
+arquivos auxiliares durante execução ainda não são detectadas.
+
+JSON: máximo 4 MiB, 10000 eventos e 256 células. Inteiros fora de ±(2^53-1)
+são rejeitados para evitar arredondamento. A verificação de origem compara
+tokens/posições, não o conteúdo integral das fontes. Gere um novo registro após
+alterações no programa. A coleta captura stdout/stderr em memória e não é
+adequada para grandes volumes. Cancelamento encerra o supervisor e seu filho
+Gforth direto; processos adicionais lançados pelo programa não são gerenciados.
+
+Leia README.md, doc/neovim-display.md e doc/gforth-instrumentation.md no
+repositório para instalação, protocolo e investigação detalhados.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

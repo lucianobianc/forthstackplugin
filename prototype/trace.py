@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import signal
+import sys
 import tempfile
 
 ENGINE = Path(__file__).with_name("trace.fs")
@@ -69,12 +71,13 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
         environment = dict(os.environ, FST_SOURCE=str(source), FST_ENTRY=entry,
                            FST_TRACE=str(raw_path))
         status, diagnostic = "ok", None
+        process = subprocess.Popen(command, env=environment, cwd=source.parent,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
         try:
-            process = subprocess.run(command, env=environment, cwd=source.parent,
-                                     stdin=subprocess.DEVNULL, capture_output=True,
-                                     timeout=timeout)
-            stdout = process.stdout.decode("utf-8", "replace")
-            stderr = process.stderr.decode("utf-8", "replace")
+            captured_out, captured_err = process.communicate(timeout=timeout)
+            stdout = captured_out.decode("utf-8", "replace")
+            stderr = captured_err.decode("utf-8", "replace")
             returncode = process.returncode
             if returncode:
                 status = "process_error"
@@ -82,6 +85,13 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
             status, diagnostic, returncode = "timeout", "execution timed out", None
             stdout = (error.stdout or b"").decode("utf-8", "replace")
             stderr = (error.stderr or b"").decode("utf-8", "replace")
+        finally:
+            # Also runs when the Neovim parent cancels this supervisor with SIGTERM.
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            process.stdout.close()
+            process.stderr.close()
         raw = raw_path.read_text() if raw_path.exists() else ""
     try:
         sites, events, result = parse_trace(raw)
@@ -124,4 +134,5 @@ def main():
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, lambda number, frame: sys.exit(128 + number))
     raise SystemExit(main())

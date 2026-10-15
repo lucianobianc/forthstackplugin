@@ -1,7 +1,8 @@
 # Investigação de instrumentação do Gforth
 
 Implementação experimental da fase 1 de `SPEC.md`. Validada em Linux x86-64,
-Gforth **0.7.3**, com Python 3 como supervisor. Não há integração com Neovim.
+Gforth **0.7.3**, com Python 3 como supervisor. O protótipo continua utilizável
+separadamente; o [plugin](neovim-display.md) agora o utiliza para execução explícita.
 Não foi verificada compatibilidade com versões de desenvolvimento do Gforth.
 
 ## Mecanismos investigados
