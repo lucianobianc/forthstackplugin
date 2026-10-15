@@ -55,8 +55,10 @@ def parse_trace(raw):
 
 
 def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
-          max_events=10000, max_depth=256):
-    source = Path(source).resolve(strict=True)
+          max_events=10000, max_depth=256, source_text=None):
+    source = Path(source).resolve(strict=source_text is None)
+    if source_text is not None and len(source_text.encode("utf-8")) > 4 * 1024 * 1024:
+        raise ValueError("source exceeds 4 MiB")
     if timeout <= 0 or max_events < 1 or max_depth < 1:
         raise ValueError("limits must be positive")
     if not entry or any(c.isspace() for c in entry):
@@ -68,8 +70,12 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
                f":noname {invocation} ; is fst-inputs fst-run bye"]
     with tempfile.TemporaryDirectory(prefix="forth-stack-") as temporary:
         raw_path = Path(temporary) / "events.txt"
+        snapshot = ""
+        if source_text is not None:
+            snapshot = str(Path(temporary) / "buffer.fs")
+            Path(snapshot).write_text(source_text, encoding="utf-8")
         environment = dict(os.environ, FST_SOURCE=str(source), FST_ENTRY=entry,
-                           FST_TRACE=str(raw_path))
+                           FST_TRACE=str(raw_path), FST_SNAPSHOT=snapshot)
         status, diagnostic = "ok", None
         process = subprocess.Popen(command, env=environment, cwd=source.parent,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -118,15 +124,19 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("entry")
     parser.add_argument("--gforth", default="gforth")
+    parser.add_argument("--stdin-source", action="store_true", help="trace unsaved source from stdin")
     parser.add_argument("--input", type=int, action="append", default=[])
     parser.add_argument("--timeout", type=float, default=5)
     parser.add_argument("--max-events", type=int, default=10000)
     parser.add_argument("--max-depth", type=int, default=256)
     args = parser.parse_args()
     try:
+        source_text = None
+        if args.stdin_source:
+            source_text = sys.stdin.buffer.read(4 * 1024 * 1024 + 1).decode("utf-8")
         result = trace(args.source, args.entry, gforth=args.gforth, inputs=args.input,
                        timeout=args.timeout, max_events=args.max_events,
-                       max_depth=args.max_depth)
+                       max_depth=args.max_depth, source_text=source_text)
     except (OSError, ValueError) as error:
         parser.exit(2, f"trace: {error}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))

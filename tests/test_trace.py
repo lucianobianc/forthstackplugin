@@ -150,6 +150,23 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(result["status"], "incomplete")
         self.assertFalse(result["complete"])
 
+    def test_unsaved_snapshot_keeps_source_identity_and_relative_include(self):
+        helper = Path(self.directory.name) / "helper.fs"
+        helper.write_text(": helper 1+ ;")
+        self.source.write_text(": sample 99 ;")
+        result = module.trace(self.source, "sample", gforth=GFORTH,
+                              source_text="include ./helper.fs\n: sample 15 helper ;")
+        self.successful(result, [16])
+        self.assertEqual(self.source.read_text(), ": sample 99 ;")
+        locations = {e["source"]["file"] for e in result["events"] if e["source"]}
+        self.assertEqual(locations, {str(self.source), str(helper)})
+
+    def test_snapshot_for_new_named_file_never_creates_source(self):
+        result = module.trace(self.source, "sample", gforth=GFORTH,
+                              source_text=": sample 42 ;")
+        self.successful(result, [42])
+        self.assertFalse(self.source.exists())
+
     def test_protocol_rejects_invalid_sequence_and_false_success(self):
         with self.assertRaises(ValueError):
             module.parse_trace("E 1 0 2 0\nX 0\n")

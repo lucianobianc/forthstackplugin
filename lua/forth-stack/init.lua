@@ -1,7 +1,8 @@
 local M = {}
 local display = require('forth-stack.display')
-local states, attached = {}, {}
+local states, attached, reloads = {}, {}, {}
 local engine = require('forth-stack.engine')
+local live = require('forth-stack.live')
 
 local function close_inspect(state)
   if state and state.window and vim.api.nvim_win_is_valid(state.window) then
@@ -15,7 +16,13 @@ end
 
 function M.clear(bufnr)
   bufnr = buffer(bufnr)
+  reloads[bufnr] = nil
+  live.disable(bufnr)
   engine.stop(bufnr)
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.b[bufnr].forth_stack_status = 'inativo'
+    vim.b[bufnr].forth_stack_error = nil
+  end
   close_inspect(states[bufnr])
   states[bufnr] = nil
   display.clear(bufnr)
@@ -23,20 +30,38 @@ end
 
 local function watch(bufnr)
   if not attached[bufnr] then
+    local function changed(_, target)
+      engine.stop(target)
+      local state = states[target]
+      states[target] = nil
+      display.clear(target)
+      vim.schedule(function() close_inspect(state) end)
+      live.changed(target)
+    end
     local ok = vim.api.nvim_buf_attach(bufnr, false, {
-      on_lines = function(_, changed)
-        -- Window changes require leaving textlock; clear marks immediately.
-        engine.stop(changed)
-        local state = states[changed]
-        states[changed] = nil
-        display.clear(changed)
-        vim.schedule(function() close_inspect(state) end)
-      end,
+      on_lines = changed,
+      on_reload = changed,
       on_detach = function(_, detached)
+        local ticket = {}
+        reloads[detached] = ticket
+        local entry = live.entry(detached)
+        local name = vim.api.nvim_buf_is_valid(detached) and vim.api.nvim_buf_get_name(detached)
+        live.disable(detached)
         engine.stop(detached)
         local state = states[detached]
         states[detached], attached[detached] = nil, nil
-        vim.schedule(function() close_inspect(state) end)
+        vim.schedule(function()
+          close_inspect(state)
+          -- :edit! detaches and reloads the same buffer synchronously.
+          if entry and reloads[detached] == ticket and vim.api.nvim_buf_is_valid(detached)
+            and vim.api.nvim_buf_is_loaded(detached)
+            and vim.api.nvim_buf_get_name(detached) == name then
+            watch(detached)
+            live.enable(detached, entry)
+            live.changed(detached)
+          end
+          if reloads[detached] == ticket then reloads[detached] = nil end
+        end)
       end,
     })
     assert(ok, 'Não foi possível acompanhar alterações no buffer')
@@ -58,6 +83,8 @@ end
 function M.load(path, bufnr)
   path = vim.fn.fnamemodify(path, ':p')
   M.show(require('forth-stack.trace').read(path), bufnr, vim.fs.dirname(path))
+  reloads[buffer(bufnr)] = nil
+  live.disable(buffer(bufnr))
 end
 
 function M.toggle(bufnr)
@@ -92,19 +119,35 @@ function M.demo()
   M.load(paths.fixture)
 end
 
-function M.run(entry, bufnr)
+function M._refresh(entry, bufnr, opts)
   bufnr = buffer(bufnr)
   watch(bufnr)
   engine.run(bufnr, entry, function(trace, target)
     M.show(trace, target, vim.fn.getcwd())
-  end)
+  end, opts)
   close_inspect(states[bufnr])
   states[bufnr] = nil
   display.clear(bufnr)
 end
 
+function M.run(entry, bufnr)
+  bufnr = buffer(bufnr)
+  reloads[bufnr] = nil
+  M._refresh(entry, bufnr)
+  live.enable(bufnr, entry)
+end
+
 function M.stop(bufnr)
-  return engine.stop(buffer(bufnr))
+  bufnr = buffer(bufnr)
+  reloads[bufnr] = nil
+  live.disable(bufnr)
+  vim.b[bufnr].forth_stack_status = 'pausado'
+  return engine.stop(bufnr)
+end
+
+function M.status(bufnr)
+  bufnr = buffer(bufnr)
+  return vim.b[bufnr].forth_stack_status or 'inativo', vim.b[bufnr].forth_stack_error
 end
 
 vim.api.nvim_create_autocmd('BufFilePost', {
@@ -112,10 +155,22 @@ vim.api.nvim_create_autocmd('BufFilePost', {
   callback = function(args) M.clear(args.buf) end,
 })
 
+vim.api.nvim_create_autocmd('BufReadPost', {
+  group = 'ForthStackSource',
+  callback = function(args)
+    if not attached[args.buf] then return end
+    engine.stop(args.buf)
+    close_inspect(states[args.buf])
+    states[args.buf] = nil
+    display.clear(args.buf)
+    live.changed(args.buf)
+  end,
+})
+
 vim.api.nvim_create_autocmd('VimLeavePre', {
   group = 'ForthStackSource',
   callback = function()
-    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do engine.stop(bufnr) end
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do live.disable(bufnr); engine.stop(bufnr) end
   end,
 })
 

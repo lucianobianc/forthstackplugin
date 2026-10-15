@@ -9,7 +9,7 @@ Em packages start, os comandos são carregados automaticamente, sem setup.
 A demonstração não precisa de Python ou Gforth: >
     :ForthStackDemo
 <
-Para executar de verdade, instale Python 3 e Gforth no PATH, salve seu arquivo
+Para executar de verdade, instale Python 3 e Gforth no PATH, abra seu arquivo
 Forth e execute uma palavra definida nele: >
     :ForthStackRun exemplo
 <
@@ -20,14 +20,18 @@ DIAGNÓSTICO                                                *forth-stack-health*
 COMANDOS                                                  *forth-stack-commands*
 
 :ForthStackDemo           Abre exemplo incluído com um registro pronto.
-:ForthStackRun {palavra}  Executa o arquivo salvo e a palavra em segundo plano.
-:ForthStackStop           Cancela execução do buffer atual.
+:ForthStackRun {palavra}  Executa o buffer e ativa atualização após a digitação.
+:ForthStackStop           Pausa atualização e cancela execução do buffer atual.
+:ForthStackStatus         Mostra estado e último erro do buffer.
 :ForthStackLoad {json}    Carrega registro JSON externo de versão 1.
 :ForthStackInspect        Inspeciona última observação na linha do cursor.
 :ForthStackToggle         Oculta ou mostra os dados carregados.
 :ForthStackClear          Limpa os dados e cancela execução do buffer atual.
 
-Alterações de texto e renomeações invalidam os registros e cancelam execução.
+Depois de Run, as pilhas se atualizam após 350 ms sem novas edições, inclusive
+no modo de inserção e sem salvar. Alterações cancelam a execução anterior.
+Erros automáticos ficam em Status, sem notificações repetitivas ao digitar.
+Stop/Clear pausam; Run retoma. Renomear/fechar também desarma atualização.
 Nenhum comando escreve o buffer ou impõe atalhos globais.
 
 CONFIGURAÇÃO                                              *forth-stack-setup*
@@ -38,6 +42,8 @@ CONFIGURAÇÃO                                              *forth-stack-setup*
       timeout = 5,
       max_events = 10000,
       max_depth = 256,
+      auto_update = true,
+      debounce_ms = 350,
     })
 <
 setup() é opcional em packages normais, registra os comandos e pode ser repetido.
@@ -51,7 +57,8 @@ API                                                       *forth-stack-api*
 
 setup(opts?)             Configura e registra comandos.
 demo()                   Abre o exemplo com dados incluídos.
-run(entry, bufnr?)        Executa uma palavra; o buffer deve estar salvo.
+run(entry, bufnr?)        Executa snapshot do buffer e arma auto-update.
+status(bufnr?)            Retorna estado e último erro, se houver.
 stop(bufnr?)             Cancela execução; retorna true se havia uma ativa.
 load(path, bufnr?)        Lê, valida e exibe um registro.
 show(trace, bufnr?, base?) Exibe uma tabela de registro já decodificada.
@@ -69,7 +76,9 @@ Histórico por linha é retido; navegação por ocorrência ainda não está dis
 Não há identidade de valores, etiquetas ou persistência.
 
 Palavras imediatas e o interior de código preexistente têm cobertura limitada.
-A execução requer o fonte salvo, carrega o arquivo normalmente e não é sandbox.
+A execução usa snapshot privado do buffer, sem salvar. Não é sandbox.
+O buffer precisa ter nome em uma pasta existente; includes usam arquivos do disco.
+Cada atualização reexecuta o programa, inclusive efeitos de I/O.
 Somente execuções completas são exibidas; falhas são notificadas. Alterações em
 arquivos auxiliares durante execução ainda não são detectadas.
 

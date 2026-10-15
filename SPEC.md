@@ -158,7 +158,11 @@ Comando proposto:
 :ForthStackRun
 ```
 
-A execução automática a cada tecla pressionada não fará parte da versão inicial.
+Após a escolha explícita da palavra de entrada com `:ForthStackRun palavra`, a
+visualização será atualizada automaticamente após uma pausa na digitação, inclusive
+para alterações não salvas. Cada edição cancela execuções anteriores e invalida
+seus resultados. `:ForthStackStop` pausa esse acompanhamento. Esta revisão
+substitui a restrição original de execução apenas manual.
 
 O interpretador deverá executar em um processo separado do Neovim.
 
@@ -367,7 +371,7 @@ O protocolo entre motor e analisador deverá ser documentado e independente da a
 - Neovim em Linux.
 - Plugin em Lua.
 - Integração inicial com Gforth.
-- Execução explícita.
+- Escolha explícita da palavra de entrada e atualização automática com debounce.
 - Visualização da pilha com virtual text.
 - Etiquetas personalizadas.
 - Persistência em arquivo auxiliar.
@@ -384,7 +388,6 @@ O protocolo entre motor e analisador deverá ser documentado e independente da a
 - Inferência semântica perfeita.
 - Alteração da sintaxe Forth.
 - Interface gráfica independente do Neovim.
-- Execução automática a cada edição.
 - Suporte completo a todas as extensões de Forth.
 - Rastreamento integral da pilha de retorno.
 - Suporte a múltiplas tarefas Forth concorrentes.

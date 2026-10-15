@@ -12,11 +12,16 @@ end
 
 function M.running(bufnr) return active[bufnr] ~= nil end
 
-function M.run(bufnr, entry, on_success)
+function M.run(bufnr, entry, on_success, opts)
+  opts = opts or {}
   assert(type(entry) == 'string' and entry ~= '' and not entry:find('%s'), 'Informe uma palavra Forth')
-  assert(vim.bo[bufnr].buftype == '' and not vim.bo[bufnr].modified, 'Salve o arquivo antes de executar')
+  assert(vim.bo[bufnr].buftype == '', 'Abra um buffer de arquivo Forth')
   local filename = vim.api.nvim_buf_get_name(bufnr)
-  assert(filename ~= '' and vim.fn.filereadable(filename) == 1, 'Abra um arquivo Forth salvo')
+  assert(filename ~= '' and vim.fn.isdirectory(vim.fs.dirname(filename)) == 1,
+    'Dê um nome ao buffer em uma pasta existente (:file caminho.fs)')
+  local snapshot = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
+  if vim.bo[bufnr].endofline then snapshot = snapshot .. '\n' end
+  assert(#snapshot <= 4 * 1024 * 1024, 'Limite: fonte de 4 MiB')
   local config = vim.deepcopy(require('forth-stack.config').options)
   for _, key in ipairs({ 'python', 'gforth' }) do
     assert(vim.fn.executable(config[key]) == 1, key .. ' não encontrado; consulte :checkhealth forth-stack')
@@ -29,8 +34,10 @@ function M.run(bufnr, entry, on_success)
   local command = { vim.fn.exepath(config.python), tracer,
     '--gforth', vim.fn.exepath(config.gforth),
     '--timeout', tostring(config.timeout), '--max-events', tostring(config.max_events),
-    '--max-depth', tostring(config.max_depth), '--', filename, entry }
-  local ok, process = pcall(vim.system, command, { text = true }, function(result)
+    '--max-depth', tostring(config.max_depth), '--stdin-source', '--', filename, entry }
+  vim.b[bufnr].forth_stack_status = 'executando'
+  vim.b[bufnr].forth_stack_error = nil
+  local ok, process = pcall(vim.system, command, { text = true, stdin = snapshot }, function(result)
     vim.schedule(function()
       if active[bufnr] ~= run then return end
       active[bufnr] = nil
@@ -45,8 +52,13 @@ function M.run(bufnr, entry, on_success)
           'Execução falhou: ' .. tostring(trace.diagnostic or trace.status)
           .. ' (Forth ' .. tostring(trace.forth_code) .. ')')
         on_success(trace, bufnr)
+        vim.b[bufnr].forth_stack_status = 'atualizado'
       end)
-      if not success then vim.notify(tostring(err), vim.log.levels.ERROR, { title = 'Forth Stack' }) end
+      if not success then
+        vim.b[bufnr].forth_stack_status = 'erro'
+        vim.b[bufnr].forth_stack_error = tostring(err)
+        if not opts.silent then vim.notify(tostring(err), vim.log.levels.ERROR, { title = 'Forth Stack' }) end
+      end
     end)
   end)
   if not ok then active[bufnr] = nil; error(process) end

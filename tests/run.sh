@@ -24,3 +24,4 @@ XDG_CONFIG_HOME="$trace_directory/config" XDG_STATE_HOME="$trace_directory/state
 XDG_CACHE_HOME="$trace_directory/cache" \
   nvim --headless -u examples/minimal-init.lua -i NONE \
     -c "lua dofile(vim.env.FORTH_STACK_ROOT .. '/tests/test_quickstart.lua')"
+nvim --headless -u NONE -i NONE -l tests/test_live.lua

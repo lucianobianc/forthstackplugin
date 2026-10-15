@@ -3,7 +3,7 @@
 A camada Lua apresenta registros JSON de versão 1 do protótipo Gforth usando
 extmarks e virtual text. Validada com Neovim 0.10.4, Linux x86-64. Não possui
 pacotes Lua externos nem configuração obrigatória ou atalhos globais. A execução
-explícita está disponível com `ForthStackRun`; não há execução automática ao editar.
+é iniciada com `ForthStackRun` e depois atualizada automaticamente ao editar.
 
 ## Experimentar
 
@@ -65,8 +65,8 @@ do arquivo associado ao buffer.
 `ForthStackToggle` oculta e restaura as marcas sem descartar o histórico;
 `ForthStackClear` descarta ambos. Outros namespaces de extmarks permanecem
 intactos. Qualquer edição invalida os dados do buffer, mesmo com a visualização
-oculta; desfazer a edição não restaura o registro automaticamente. O usuário deve
-carregá-lo novamente. Renomear o buffer também invalida a associação.
+oculta. Para registros JSON estáticos, carregue novamente o registro. Para uma
+execução iniciada com `ForthStackRun`, uma nova coleta é agendada após a digitação. Renomear o buffer também invalida a associação.
 
 As marcas usam o grupo `ForthStackValue`, associado por padrão a `Comment`,
 respeitando uma definição personalizada já existente. Texto Forth, estado
@@ -133,23 +133,39 @@ registra os comandos, dispensando `:runtime` manual. Não há etapa de compilaç
 ou dependências externas para `:ForthStackDemo`, que encontra os arquivos incluídos
 pela localização do plugin instalado, independentemente do diretório atual.
 
-`:ForthStackRun palavra` aceita uma palavra sem espaços e executa o arquivo salvo
-atual pelo supervisor Python e Gforth. O processo é assíncrono (`vim.system`);
-argumentos são passados como lista, sem interpolação em shell. O processo Gforth
-usa a pasta do arquivo como diretório de trabalho. Palavras que precisam de
-argumentos podem ser chamadas por uma palavra wrapper no próprio arquivo; a CLI
-Python continua oferecendo `--input`, mas o comando Neovim ainda não recebe
-argumentos de pilha. stdout do programa permanece no registro retornado, sem ser
-misturado com o protocolo; esta interface ainda não apresenta um painel de saída.
+`:ForthStackRun palavra` escolhe a palavra de entrada e executa um snapshot do
+buffer em processo assíncrono. O texto é enviado por stdin ao supervisor Python,
+que usa um arquivo privado temporário e o carrega com `included1`, atribuindo o
+nome original ao fluxo. Assim, as localizações e includes relativos continuam
+apontando para o programa original; o arquivo do usuário não é escrito. O buffer
+pode estar modificado ou ainda não existir no disco, desde que tenha nome em uma
+pasta existente. Outros arquivos incluídos são lidos do disco, não de buffers
+modificados. Snapshot de fonte: máximo 4 MiB.
 
-Uma nova execução substitui a anterior no mesmo buffer. Editar, renomear, limpar,
-carregar um registro válido ou fechar o buffer cancela sua execução. Sair do
-Neovim também cancela processos ativos. Cancelamento envia SIGTERM ao supervisor,
-que encerra e aguarda seu filho Gforth direto. Não há gerenciamento de processos
-adicionais que o programa Forth lance. O timeout também encerra o filho direto.
-Mesmo que uma resposta já esteja na fila, resultados são descartados se a execução
-foi substituída, o buffer desapareceu ou seu changedtick/nome mudou. Arquivos
-auxiliares alterados durante a execução ainda não são acompanhados.
+Por padrão, Run arma atualização automática **somente naquele buffer**. Alterações,
+inclusive em modo de inserção, invalidam marcas, cancelam o processo corrente e
+reiniciam um timer de 350 ms. O timer captura a versão mais recente do buffer;
+editações em rajada geram uma única execução. O teste de identidade da execução,
+nome e changedtick descarta respostas atrasadas. Desfazer/refazer e recarregar o
+buffer também participam do acompanhamento. Não há execução só por abrir arquivos.
+
+`:ForthStackStop` pausa timers/execução; Run retoma ou muda a palavra de entrada.
+Clear, carregar um JSON válido, renomear ou fechar também desarmam o acompanhamento.
+Sair do Neovim encerra processos ativos. `auto_update = false` mantém apenas
+execução manual; `debounce_ms` configura a pausa entre 1 e 5000 ms. Código
+incompleto gera estado de erro sem notificações repetidas durante edição e será
+reavaliado após a próxima mudança; `:ForthStackStatus` mostra o diagnóstico.
+`vim.b.forth_stack_status` e `vim.b.forth_stack_error` expõem esses dados à API.
+Erros de Run manual continuam sendo notificados. Resultados antigos não ficam
+visíveis enquanto a versão atual está inválida.
+
+Argumentos são passados como lista, sem shell. Cada atualização cria um processo
+novo e reexecuta arquivo/palavra, incluindo seus efeitos de I/O. Palavras que
+precisam de argumentos podem ser chamadas por um wrapper; `--input` continua
+na CLI Python, mas não no comando Neovim. stdout é preservado no JSON, sem painel
+próprio no Neovim. Stop envia SIGTERM ao supervisor, que encerra e aguarda seu
+filho Gforth direto. Descendentes adicionais não são gerenciados. Includes
+alterados em outro buffer não disparam atualizações nem têm changedtick validado.
 
 Somente resultados completos e bem-sucedidos são desenhados; erros são mostrados
 como notificações. Uma execução nova limpa a visualização anterior. O supervisor
@@ -157,7 +173,8 @@ continua capturando stdout/stderr em memória, e o limite de 4 MiB é aplicado a
 resultado recebido; isso não limita preventivamente toda a memória de coleta.
 Não se deve usar este protótipo para executar programas não confiáveis.
 
-`setup()` aceita `python`, `gforth`, `timeout`, `max_events` e `max_depth`, com os
+`setup()` aceita `python`, `gforth`, `timeout`, `max_events`, `max_depth`,
+`auto_update` e `debounce_ms`, com os
 padrões e limites descritos no README. As opções são validadas antes da alteração;
 repetir setup registra novamente os comandos sem duplicá-los. Caminhos de
 executáveis são resolvidos antes de iniciar o supervisor, incluindo caminhos com
@@ -172,3 +189,13 @@ comprovam registro automático, demo sem dependências, configuração repetida,
 diagnóstico, execução real, caminhos com espaços, arquivos não salvos, falhas,
 cancelamento do filho Gforth e timeout. A receita lazy.nvim usa a API padrão do
 gerenciador; o próprio lazy.nvim não foi instalado para essa validação.
+
+## Validação de atualização contínua
+
+Além da suíte existente, os testes cobrem snapshots não salvos, origem e includes
+relativos preservados, arquivos novos sem criação no disco e onze cenários Lua:
+edição com debounce, rajadas, código incompleto/recuperação sem popups, pausa,
+troca da palavra de entrada, cancelamento de respostas antigas, recarga do disco,
+Clear, modo manual,
+arquivo novo e desligamento por renomeação/fechamento. O arquivo no disco e o
+estado modified do buffer são verificados para impedir salvamento implícito.

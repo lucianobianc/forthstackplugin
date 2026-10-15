@@ -68,9 +68,16 @@ defer fst-inputs
     ['] fst-compiler is parser1
   then ;
 
+: fst-include ( -- )
+  s" FST_SNAPSHOT" getenv dup if
+    r/o open-file throw s" FST_SOURCE" getenv included1
+  else
+    2drop s" FST_SOURCE" getenv included
+  then ;
+
 : fst-load ( -- )
   ['] fst-before is before-word
-  s" FST_SOURCE" getenv ['] included catch
+  ['] fst-include catch
   fst-old-before is before-word
   \ INCLUDED restores input state; reset our temporary parser wrapper, too.
   state @ 0= if ['] interpreter1 is parser1 then

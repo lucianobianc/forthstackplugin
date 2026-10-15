@@ -1,5 +1,5 @@
 local M = {}
-M.defaults = { python = 'python3', gforth = 'gforth', timeout = 5, max_events = 10000, max_depth = 256 }
+M.defaults = { python = 'python3', gforth = 'gforth', timeout = 5, max_events = 10000, max_depth = 256, auto_update = true, debounce_ms = 350 }
 M.options = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
@@ -9,7 +9,8 @@ function M.setup(opts)
   for _, key in ipairs({ 'python', 'gforth' }) do
     assert(type(candidate[key]) == 'string' and candidate[key] ~= '', key .. ' deve ser um executável')
   end
-  for key, maximum in pairs({ timeout = 60, max_events = 10000, max_depth = 256 }) do
+  assert(type(candidate.auto_update) == 'boolean', 'auto_update deve ser booleano')
+  for key, maximum in pairs({ timeout = 60, max_events = 10000, max_depth = 256, debounce_ms = 5000 }) do
     local value = candidate[key]
     assert(type(value) == 'number' and value > 0 and value <= maximum,
       key .. ' deve estar entre 0 e ' .. maximum)

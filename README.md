@@ -35,7 +35,7 @@ Adicione à sua lista de plugins e execute `:Lazy sync`:
 O campo `main` identifica o módulo Lua correto para a configuração automática.
 Também é possível carregar sob demanda: substitua `lazy = false` por
 `cmd = { 'ForthStackDemo', 'ForthStackLoad', 'ForthStackRun', 'ForthStackStop',
-'ForthStackInspect', 'ForthStackToggle', 'ForthStackClear' }`.
+'ForthStackInspect', 'ForthStackToggle', 'ForthStackClear', 'ForthStackStatus' }`.
 
 ### Packages nativos do Neovim (Linux)
 
@@ -86,7 +86,7 @@ x86-64 com Gforth 0.7.3. Confira a instalação com:
 :checkhealth forth-stack
 ```
 
-Abra um arquivo `.fs`, salve-o e execute uma palavra definida nele:
+Abra um arquivo `.fs` e escolha uma vez a palavra de entrada:
 
 ```forth
 : exemplo
@@ -99,11 +99,26 @@ Abra um arquivo `.fs`, salve-o e execute uma palavra definida nele:
 :ForthStackRun exemplo
 ```
 
-A execução acontece em segundo plano, e as pilhas aparecem nas linhas observadas.
-`:ForthStackStop` interrompe a execução do buffer atual. Editar, renomear ou fechar
-o buffer cancela sua execução e invalida os resultados. Reexecutar substitui o
-processo anterior. Arquivos são carregados normalmente pelo Gforth, inclusive
-código de nível superior; o plugin só executa quando solicitado.
+Depois disso, **as pilhas se atualizam enquanto você escreve**, após uma pausa
+de 350 ms na digitação, inclusive sem salvar e durante o modo de inserção. O
+plugin executa uma cópia temporária do buffer; não grava seu arquivo. Cada nova
+edição cancela a execução anterior e somente resultados do texto atual aparecem.
+A execução acontece em segundo plano, sem bloquear o editor.
+
+Quando o código fica temporariamente incompleto, as pilhas antigas somem; o
+plugin aguarda a próxima edição e tenta novamente, sem abrir notificações a cada
+erro de digitação. Consulte `:ForthStackStatus` para ver o estado e o último erro.
+Erros de uma execução manual continuam sendo notificados.
+
+`:ForthStackStop` pausa a atualização automática do buffer atual; outro
+`:ForthStackRun exemplo` retoma. `:ForthStackClear` também pausa e limpa os dados.
+Renomear ou fechar o buffer desativa a atualização. Um arquivo novo precisa apenas
+ter nome em uma pasta existente (`:file /caminho/novo.fs`); não precisa ser salvo.
+Abrir um arquivo, carregar JSON ou usar a demonstração não arma execução automática.
+
+Cada atualização reexecuta o arquivo e a palavra de entrada em um processo novo;
+efeitos de I/O do seu programa também se repetem. Arquivos incluídos são lidos do
+disco; alterações ainda não salvas em outros buffers não entram nesta execução.
 
 Configuração opcional no `opts` do lazy.nvim ou via Lua:
 
@@ -114,19 +129,23 @@ require('forth-stack').setup({
   timeout = 5,        -- segundos, máximo 60
   max_events = 10000, -- máximo 10000
   max_depth = 256,    -- máximo 256 células
+  auto_update = true, -- após o primeiro ForthStackRun no buffer
+  debounce_ms = 350,  -- pausa após digitação, entre 1 e 5000 ms
 })
 ```
 
 `python` e `gforth` recebem nomes de executáveis ou caminhos completos, não
-comandos com argumentos de shell. Não são impostos atalhos globais.
+comandos com argumentos de shell. Não são impostos atalhos globais. Use `auto_update = false` para execução
+somente manual; execute novamente `ForthStackRun` após mudar essa opção.
 
 ## Comandos
 
 | Comando | Função |
 | --- | --- |
 | `:ForthStackDemo` | Abrir exemplo com registro incluído |
-| `:ForthStackRun palavra` | Executar palavra no arquivo salvo atual |
-| `:ForthStackStop` | Interromper execução do buffer atual |
+| `:ForthStackRun palavra` | Executar o buffer e ativar atualização automática |
+| `:ForthStackStop` | Pausar atualização e interromper execução do buffer atual |
+| `:ForthStackStatus` | Mostrar estado e último erro do buffer |
 | `:ForthStackLoad arquivo.json` | Carregar registro externo |
 | `:ForthStackInspect` | Inspecionar última observação na linha do cursor |
 | `:ForthStackToggle` | Ocultar/mostrar visualização |
