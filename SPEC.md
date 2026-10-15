@@ -158,7 +158,8 @@ Comando proposto:
 :ForthStackRun
 ```
 
-Após a escolha explícita da palavra de entrada com `:ForthStackRun palavra`, a
+Após iniciar explicitamente com `:ForthStackRun` (arquivo inteiro) ou
+`:ForthStackRun palavra` (arquivo e chamada adicional da palavra), a
 visualização será atualizada automaticamente após uma pausa na digitação, inclusive
 para alterações não salvas. Cada edição cancela execuções anteriores e invalida
 seus resultados. `:ForthStackStop` pausa esse acompanhamento. Esta revisão
@@ -371,7 +372,7 @@ O protocolo entre motor e analisador deverá ser documentado e independente da a
 - Neovim em Linux.
 - Plugin em Lua.
 - Integração inicial com Gforth.
-- Escolha explícita da palavra de entrada e atualização automática com debounce.
+- Execução explícita do arquivo ou palavra e atualização automática com debounce.
 - Visualização da pilha com virtual text.
 - Etiquetas personalizadas.
 - Persistência em arquivo auxiliar.

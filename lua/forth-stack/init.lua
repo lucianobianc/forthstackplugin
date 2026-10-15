@@ -131,6 +131,7 @@ function M._refresh(entry, bufnr, opts)
 end
 
 function M.run(entry, bufnr)
+  entry = entry or ''
   bufnr = buffer(bufnr)
   reloads[bufnr] = nil
   M._refresh(entry, bufnr)

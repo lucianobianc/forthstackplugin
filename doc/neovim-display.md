@@ -133,7 +133,9 @@ registra os comandos, dispensando `:runtime` manual. Não há etapa de compilaç
 ou dependências externas para `:ForthStackDemo`, que encontra os arquivos incluídos
 pela localização do plugin instalado, independentemente do diretório atual.
 
-`:ForthStackRun palavra` escolhe a palavra de entrada e executa um snapshot do
+`:ForthStackRun` executa o código do arquivo, inclusive literais e chamadas fora
+das definições. `:ForthStackRun palavra` também chama a palavra informada depois
+da carga. Ambos executam um snapshot do
 buffer em processo assíncrono. O texto é enviado por stdin ao supervisor Python,
 que usa um arquivo privado temporário e o carrega com `included1`, atribuindo o
 nome original ao fluxo. Assim, as localizações e includes relativos continuam
@@ -210,3 +212,28 @@ As mensagens distinguem códigos comuns do Gforth (pilha vazia, palavra desconhe
 divisão por zero etc.) e incluem a última posição observada quando disponível.
 Essa posição é contexto de compilação/última sonda, não um snapshot garantido no
 instante da falha. Falhas do processo Gforth preservam também seu stderr.
+
+## Código fora das definições
+
+No modo arquivo (`:ForthStackRun`, sem argumento), o rastreador observa o
+interpretador de texto durante a carga. Por exemplo, em `examples/top-level.fs`,
+`18 can-drive` deixa `[-1]` e `20 can-drive` deixa `[-1, -1]`. O primeiro resultado
+não é descartado automaticamente. A definição de `can-drive` mostra a última
+ocorrência executada de seu corpo, enquanto cada chamada externa tem sua própria
+posição no arquivo.
+
+O modo palavra mantém os eventos dessa carga e faz uma chamada adicional ao final.
+Portanto, não é necessário passar uma palavra que já é chamada no arquivo, a
+menos que se queira executá-la novamente. A escolha do modo é preservada na
+atualização automática, mesmo sem salvar. Um Run sem argumentos sempre escolhe
+modo arquivo; não reutiliza silenciosamente o nome anterior.
+
+Definições não chamadas e arquivos vazios produzem execução completa sem marcas,
+em vez de inventar estados. A coleta é suspensa na compilação, inclusive em
+blocos `[ ... ]`, para não apresentar itens de controle do compilador como dados
+do programa. Os limites de palavras imediatas, macros e compiladores customizados
+continuam válidos; isso não é um rastreador de todas as primitivas da VM.
+
+A CLI também aceita omitir a palavra: `python3 prototype/trace.py examples/top-level.fs`.
+Com `--input`, no modo arquivo, os valores são fornecidos antes da carga; no modo
+palavra, são fornecidos depois da carga e antes da chamada adicional.

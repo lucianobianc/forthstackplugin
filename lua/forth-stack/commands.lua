@@ -12,7 +12,7 @@ function M.register()
   command('ForthStackDemo', function() require('forth-stack').demo() end,
     { desc = 'Abrir exemplo com pilhas, sem executar Forth' })
   command('ForthStackRun', function(args) require('forth-stack').run(args.args) end,
-    { nargs = 1, desc = 'Executar palavra do arquivo atual no Gforth' })
+    { nargs = '?', desc = 'Executar arquivo Forth ou palavra específica' })
   command('ForthStackStatus', function()
     require('forth-stack').status_view()
   end)

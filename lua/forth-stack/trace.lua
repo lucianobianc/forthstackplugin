@@ -50,7 +50,8 @@ function M.lines(trace, bufnr, base)
       end
     end
   end
-  assert(matched, 'O registro não contém eventos para este arquivo')
+  assert(matched or (type(trace.source) == 'string' and resolve(trace.source, base) == filename),
+    'O registro não contém eventos para este arquivo')
   return lines
 end
 

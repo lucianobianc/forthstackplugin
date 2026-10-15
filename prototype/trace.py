@@ -13,7 +13,7 @@ ENGINE = Path(__file__).with_name("trace.fs")
 PHASES = {0: "before", 1: "after", 2: "entry", 3: "return"}
 
 
-def parse_trace(raw):
+def parse_trace(raw, context=None):
     """Validate framing before exposing snapshots; never infer a missing result."""
     if raw and not raw.endswith("\n"):
         raise ValueError("truncated record")
@@ -44,8 +44,13 @@ def parse_trace(raw):
                 raise ValueError("invalid event framing")
             events.append({"seq": seq, "site": site, "phase": PHASES[phase],
                            "source": sites.get(site), "stack": stack})
-        elif fields[0] == "X" and len(fields) == 2:
+        elif fields[0] == "X" and len(fields) in (2, 3):
             result = int(fields[1])
+            if len(fields) == 3:
+                if fields[2] not in ("0", "1"):
+                    raise ValueError("invalid failure context")
+                if context is not None:
+                    context["compiling"] = fields[2] == "1"
         else:
             raise ValueError("invalid or partial record")
     if result == 0 and (not events or events[0]["phase"] != "entry"
@@ -54,7 +59,7 @@ def parse_trace(raw):
     return sites, events, result
 
 
-def describe_failure(code, sites, events, entry):
+def describe_failure(code, sites, events, entry, *, compiling=False):
     messages = {
         -4: "pilha vazia: a operação precisa de valores de entrada",
         -9: "acesso inválido à memória",
@@ -67,7 +72,7 @@ def describe_failure(code, sites, events, entry):
     }
     message = messages.get(code, "exceção Forth")
     source = None
-    if not events and sites:
+    if (compiling or not events) and sites:
         # The last parsed token is a compilation location, not an execution snapshot.
         source = sites[max(sites)]
         message = "na compilação: " + message
@@ -76,17 +81,17 @@ def describe_failure(code, sites, events, entry):
     if source:
         message += (f" — {source['file']}:{source['line']}:{source['column_bytes']}"
                     f" (token {source['token']!r})")
-    return message + f"; entrada: {entry!r}"
+    return message + (f"; entrada: {entry!r}" if entry else "; modo: arquivo")
 
 
-def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
+def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
           max_events=10000, max_depth=256, source_text=None):
     source = Path(source).resolve(strict=source_text is None)
     if source_text is not None and len(source_text.encode("utf-8")) > 4 * 1024 * 1024:
         raise ValueError("source exceeds 4 MiB")
     if timeout <= 0 or max_events < 1 or max_depth < 1:
         raise ValueError("limits must be positive")
-    if not entry or any(c.isspace() for c in entry):
+    if entry is not None and any(c.isspace() for c in entry):
         raise ValueError("entry must be a single Forth name")
     # Integers are serialized, never accept executable Forth in the CLI inputs.
     invocation = " ".join(str(int(n)) for n in inputs)
@@ -99,7 +104,7 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
         if source_text is not None:
             snapshot = str(Path(temporary) / "buffer.fs")
             Path(snapshot).write_text(source_text, encoding="utf-8")
-        environment = dict(os.environ, FST_SOURCE=str(source), FST_ENTRY=entry,
+        environment = dict(os.environ, FST_SOURCE=str(source), FST_ENTRY=entry or "",
                            FST_TRACE=str(raw_path), FST_SNAPSHOT=snapshot)
         status, diagnostic = "ok", None
         process = subprocess.Popen(command, env=environment, cwd=source.parent,
@@ -124,8 +129,9 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
             process.stdout.close()
             process.stderr.close()
         raw = raw_path.read_text() if raw_path.exists() else ""
+    context = {}
     try:
-        sites, events, result = parse_trace(raw)
+        sites, events, result = parse_trace(raw, context)
     except ValueError as error:
         sites, events, result = {}, [], None
         if status == "ok":
@@ -136,7 +142,7 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
             status, diagnostic = "incomplete", "missing result marker"
         elif result != 0:
             status = "forth_error"
-            diagnostic = describe_failure(result, sites, events, entry)
+            diagnostic = describe_failure(result, sites, events, entry, compiling=context.get("compiling", False))
     if status == "process_error":
         diagnostic = "Gforth encerrou com código " + str(returncode)
         if stderr.strip():
@@ -150,7 +156,7 @@ def trace(source, entry, *, gforth="gforth", inputs=(), timeout=5,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
-    parser.add_argument("entry")
+    parser.add_argument("entry", nargs="?", help="optional word; omit to execute the file")
     parser.add_argument("--gforth", default="gforth")
     parser.add_argument("--stdin-source", action="store_true", help="trace unsaved source from stdin")
     parser.add_argument("--input", type=int, action="append", default=[])

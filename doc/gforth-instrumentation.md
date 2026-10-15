@@ -41,23 +41,28 @@ presentes na imagem, sem recarregar o pacote.
 
 ## Decisão e implementação
 
-O protótipo usa **sondas na compilação em memória**. O arquivo Forth é incluído
+O protótipo combina **sondas na compilação em memória** com observações do
+interpretador de texto durante a carga. O arquivo Forth é incluído
 normalmente, sem pré-processador, reescrita ou anotações no disco:
 
 1. O supervisor Python inicia um processo Gforth e abre um canal temporário
    separado para o protocolo. stdout/stderr do programa são preservados como
    campos distintos no resultado.
 2. Durante `included`, `before-word` substitui `parser1` somente quando a ação
-   vigente é `compiler1`. O hook anterior é chamado e restaurado depois da carga.
+   vigente é `compiler1` ou `interpreter1`. O hook anterior é chamado e restaurado
+   depois da carga. Ações do interpretador são envolvidas por snapshots; argumentos
+   do parser não entram na pilha observada.
 3. Para cada token comum ou literal, o wrapper captura arquivo, linha, coluna,
    nome da definição e texto do token, emite uma chamada `before`, delega a
    compilação ao próprio `compiler1` e emite uma chamada `after`.
 4. Palavras imediatas continuam sendo compiladas/executadas pelo Gforth sem
    sondas próprias. São registradas como `coverage: "opaque"`; as demais têm
    `coverage: "probe"`. Comentários e delimitadores também podem aparecer no mapa.
-5. Terminada a carga, são fornecidos os argumentos inteiros, a coleta é ativada
-   e a palavra de entrada é executada sob `catch`. Sondas dentro de definições
-   carregadas são executadas também em chamadas aninhadas e recursivas.
+5. A coleta começa antes da carga, é suspensa durante a compilação e retomada ao
+   fechar uma definição. Assim, código interpretado fora das definições e sondas
+   dentro dos corpos chamados produzem eventos na mesma sequência. O modo arquivo
+   termina após a carga; o modo palavra fornece os argumentos inteiros e faz a
+   chamada adicional. A sessão inteira é protegida por `catch`.
 6. Cada sonda copia logicamente a visão da pilha via `depth`/`sp@`, sem remover
    seus elementos. Os números usam um conversor decimal próprio, que não usa
    `BASE`, `PAD` nem a área compartilhada de `<# ... #>`. O canal é descarregado
@@ -132,7 +137,8 @@ Cada evento contém `seq`, `site`, `phase`, `source` e `stack`:
 - `before` / `after`: snapshots imediatamente antes/depois de um token sondado.
   Chamadas têm efeito inclusivo; eventos de suas definições podem aparecer entre
   o par. Um `throw`, `exit` ou interrupção pode deixar operações sem evento `after`.
-- `entry` / `return`: fronteiras da palavra de entrada, com `site: 0` e
+- `entry` / `return`: fronteiras da sessão (carga e eventual chamada adicional),
+  com `site: 0` e
   `source: null`. Não se inventa uma localização para essas fronteiras.
 - `stack`: células inteiras decimais com sinal, do fundo ao topo; topo à direita.
 - `source`: arquivo informado pelo Gforth, linha e coluna em **bytes**, começando
@@ -145,6 +151,9 @@ pelo valor numérico da pilha. Não há IDs de instância, etiquetas ou proveni�
 
 O canal interno usa linhas `M` (metadados com strings em hexadecimal), `E`
 (evento: sequência/site/fase/profundidade/células) e `X` (resultado de `catch`).
+`X` aceita o código e um campo opcional 0/1 indicando falha durante compilação;
+ausência mantém compatibilidade com registros antigos. Esse contexto permite
+apontar o último token compilado, sem tratá-lo como snapshot de execução.
 O parser verifica sequência, profundidade, referência ao site e marcador final.
 Saída truncada ou execução sem resultado não é apresentada como sucesso.
 `forth_code: -4096` indica limite de eventos; `-4097`, profundidade excedida.
@@ -207,3 +216,18 @@ limites, timeout e `bye` prematuro. Um programa de operações da pilha também 
 executado sem instrumentação para comparar o resultado. Fixtures são verificadas
 por SHA-256 antes/depois da execução. Os testes nativos reproduzíveis confirmaram
 `see`, `.s`, `~~`, backtrace, `dbg` e `break:` nas condições descritas acima.
+
+## Extensão: execução do arquivo
+
+A palavra de entrada é opcional na CLI e no plugin. O wrapper de `interpreter1`
+registra tokens comuns e literais no nível superior, usando `<top-level>` no
+campo `source.word`. `:` inicia uma região de compilação sem expor seu controle
+interno, `;` encerra essa região, e interpretação entre colchetes durante uma
+definição continua com coleta desativada. Palavras imediatas continuam delegadas
+ao Gforth sem sondas próprias.
+
+O arquivo é carregado uma única vez por sessão. No modo palavra, o efeito do
+código externo às definições permanece na pilha antes da chamada adicional.
+Definições não chamadas não geram eventos de execução. Erros na compilação
+restauram o parser externo antes do término do processo; definições incompletas
+são reportadas como erro de controle (-22).

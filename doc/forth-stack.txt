@@ -10,8 +10,8 @@ A demonstração não precisa de Python ou Gforth: >
     :ForthStackDemo
 <
 Para executar de verdade, instale Python 3 e Gforth no PATH, abra seu arquivo
-Forth e execute uma palavra definida nele: >
-    :ForthStackRun exemplo
+Forth e execute: >
+    :ForthStackRun
 <
 DIAGNÓSTICO                                                *forth-stack-health*
 >
@@ -20,7 +20,9 @@ DIAGNÓSTICO                                                *forth-stack-health*
 COMANDOS                                                  *forth-stack-commands*
 
 :ForthStackDemo           Abre exemplo incluído com um registro pronto.
-:ForthStackRun {palavra}  Executa o buffer e ativa atualização após a digitação.
+:ForthStackRun [palavra]  Sem argumento, executa o arquivo. Com argumento, também
+                         chama essa palavra após carregar o arquivo. Em ambos
+                         os modos, acompanha a digitação.
 :ForthStackStop           Pausa atualização e cancela execução do buffer atual.
 :ForthStackStatus         Abre estado e erro completo em uma janela de texto.
                          Use q para fechar ou :write /tmp/forth-stack-error.txt
@@ -29,6 +31,9 @@ COMANDOS                                                  *forth-stack-commands*
 :ForthStackInspect        Inspeciona última observação na linha do cursor.
 :ForthStackToggle         Oculta ou mostra os dados carregados.
 :ForthStackClear          Limpa os dados e cancela execução do buffer atual.
+
+Literais e chamadas no nível superior (fora de definições) também exibem a pilha.
+Definições não chamadas não executam seus corpos.
 
 Depois de Run, as pilhas se atualizam após 350 ms sem novas edições, inclusive
 no modo de inserção e sem salvar. Alterações cancelam a execução anterior.
@@ -59,7 +64,8 @@ API                                                       *forth-stack-api*
 
 setup(opts?)             Configura e registra comandos.
 demo()                   Abre o exemplo com dados incluídos.
-run(entry, bufnr?)        Executa snapshot do buffer e arma auto-update.
+run(entry?, bufnr?)       Executa snapshot do buffer e arma auto-update.
+                         entry omitida ou vazia seleciona execução do arquivo.
 status(bufnr?)            Retorna estado e último erro, se houver.
 stop(bufnr?)             Cancela execução; retorna true se havia uma ativa.
 load(path, bufnr?)        Lê, valida e exibe um registro.

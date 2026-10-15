@@ -18,7 +18,8 @@ function M.running(bufnr) return active[bufnr] ~= nil end
 
 function M.run(bufnr, entry, on_success, opts)
   opts = opts or {}
-  check(type(entry) == 'string' and entry ~= '' and not entry:find('%s'), 'Informe uma palavra Forth')
+  entry = entry or ''
+  check(type(entry) == 'string' and not entry:find('%s'), 'Informe uma palavra Forth')
   check(vim.bo[bufnr].buftype == '', 'Abra um buffer de arquivo Forth')
   local filename = vim.api.nvim_buf_get_name(bufnr)
   check(filename ~= '' and vim.fn.isdirectory(vim.fs.dirname(filename)) == 1,
@@ -38,7 +39,8 @@ function M.run(bufnr, entry, on_success, opts)
   local command = { vim.fn.exepath(config.python), tracer,
     '--gforth', vim.fn.exepath(config.gforth),
     '--timeout', tostring(config.timeout), '--max-events', tostring(config.max_events),
-    '--max-depth', tostring(config.max_depth), '--stdin-source', '--', filename, entry }
+    '--max-depth', tostring(config.max_depth), '--stdin-source', '--', filename }
+  if entry ~= '' then table.insert(command, entry) end
   vim.b[bufnr].forth_stack_status = 'executando'
   vim.b[bufnr].forth_stack_error = nil
   local ok, process = pcall(vim.system, command, { text = true, stdin = snapshot }, function(result)

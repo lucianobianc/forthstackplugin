@@ -126,7 +126,7 @@ class TraceTests(unittest.TestCase):
         result = self.run_source(": sample missing-word ;")
         self.assertEqual(result["status"], "forth_error")
         self.assertEqual(result["forth_code"], -13)
-        self.assertEqual(result["events"], [])
+        self.assertEqual([e["phase"] for e in result["events"]], ["entry"])
         result = self.run_source(": other 1 ;")
         self.assertEqual(result["forth_code"], -13)
         self.assertFalse(result["complete"])
@@ -179,6 +179,59 @@ class TraceTests(unittest.TestCase):
         self.assertIn("palavra Forth desconhecida", result["diagnostic"])
         self.assertIn("token '+1'", result["diagnostic"])
         self.assertIn(str(self.source), result["diagnostic"])
+
+    def test_file_mode_observes_calls_inside_and_outside_definitions(self):
+        result = self.run_source(": can-drive ( age -- f ) 18 >= ;\n\n18 can-drive\n20 can-drive", entry=None)
+        self.successful(result, [-1, -1])
+        calls = [e for e in result["events"] if e["source"]
+                 and e["source"]["token"] == "can-drive" and e["phase"] == "after"]
+        self.assertEqual([(e["source"]["line"], e["stack"]) for e in calls],
+                         [(3, [-1]), (4, [-1, -1])])
+        self.assertTrue(all(e["source"]["word"] == "<top-level>" for e in calls))
+        comparisons = [e["stack"] for e in result["events"] if e["source"]
+                       and e["source"]["token"] == ">=" and e["phase"] == "after"]
+        self.assertEqual(comparisons, [[-1], [-1, -1]])
+
+    def test_file_mode_literals_comments_and_compile_time_brackets(self):
+        result = self.run_source("( comment )\n: sample [ 1 2 + ] literal ; sample 3 *", entry=None)
+        self.successful(result, [9])
+        self.assertTrue(all(len(e["stack"]) <= 2 for e in result["events"]))
+        result = self.run_source("6 1+", entry=None)
+        self.successful(result, [7])
+        result = self.run_source("1+", entry=None, inputs=[6])
+        self.successful(result, [7])
+
+    def test_named_mode_loads_top_level_once_then_calls_entry(self):
+        result = self.run_source(": bump 1+ ;\n10 bump\n: sample 2 + ;")
+        self.successful(result, [13])
+        calls = [e for e in result["events"] if e["source"]
+                 and e["source"]["token"] == "bump" and e["phase"] == "after"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["stack"], [11])
+
+    def test_file_mode_empty_definitions_and_incomplete_definition(self):
+        for text in ["", "\\ comment", ": sample 15 ;"]:
+            self.successful(self.run_source(text, entry=None), [])
+        result = self.run_source(": sample 15", entry=None)
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["forth_code"], -22)
+        self.assertNotIn("Type `bye'", result["stdout"])
+
+    def test_file_mode_runtime_error_keeps_source_and_partial_events(self):
+        result = self.run_source("1 drop\n1+", entry=None)
+        self.assertEqual(result["forth_code"], -4)
+        self.assertEqual(result["events"][-1]["source"]["line"], 2)
+        self.assertEqual(result["events"][-1]["source"]["token"], "1+")
+        self.assertEqual(result["events"][-1]["phase"], "before")
+        self.assertIn("pilha vazia", result["diagnostic"])
+
+    def test_file_mode_include_preserves_origin_and_stack(self):
+        helper = Path(self.directory.name) / "helper.fs"
+        helper.write_text(": helper 1+ ;")
+        result = self.run_source("include ./helper.fs\n15 helper", entry=None)
+        self.successful(result, [16])
+        locations = {e["source"]["file"] for e in result["events"] if e["source"]}
+        self.assertEqual(locations, {str(self.source), str(helper)})
 
     def test_protocol_rejects_invalid_sequence_and_false_success(self):
         with self.assertRaises(ValueError):

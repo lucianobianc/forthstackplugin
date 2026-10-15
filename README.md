@@ -66,25 +66,32 @@ nvim -u examples/minimal-init.lua -c ForthStackDemo
 Abra um arquivo Forth, por exemplo `exemplo.fs`:
 
 ```forth
-: exemplo
-  15
-  1+
-;
+: birthday 1+ ;
+
+16
+birthday
 ```
 
-Execute uma vez:
+Execute uma vez, sem precisar indicar uma palavra:
 
 ```vim
-:ForthStackRun exemplo
+:ForthStackRun
 ```
+
+A linha `16` mostra `[ 16 ]`, e `birthday` mostra `[ 17 ]`. O plugin acompanha
+tanto as chamadas fora das definições quanto as operações dentro delas.
 
 As pilhas aparecem ao lado das operações observadas. O topo da pilha fica à
 direita. A partir daí, a visualização se atualiza após uma pausa de 350 ms na
 digitação, mesmo com alterações não salvas.
 
-Use `:ForthStackStop` para pausar. Execute `:ForthStackRun exemplo` novamente
+Use `:ForthStackStop` para pausar. Execute `:ForthStackRun` novamente
 para retomar. Se o código estiver incompleto, o plugin aguarda a próxima edição
 e tenta de novo, sem abrir avisos a cada tecla.
+
+Se quiser chamar uma palavra específica depois de carregar o arquivo, use
+`:ForthStackRun exemplo`. Sem argumento, apenas o código escrito no arquivo é
+executado; definições que não são chamadas não executam seus corpos.
 
 Cada atualização executa novamente o programa, incluindo suas operações de
 entrada e saída. A cobertura ainda é parcial: nem toda operação Forth é
@@ -96,7 +103,8 @@ para entender quais estados são exibidos.
 | Comando | O que faz |
 | --- | --- |
 | `:ForthStackDemo` | Abre a demonstração |
-| `:ForthStackRun palavra` | Executa e acompanha as edições |
+| `:ForthStackRun` | Executa o arquivo e acompanha as edições |
+| `:ForthStackRun palavra` | Carrega o arquivo e também chama uma palavra específica |
 | `:ForthStackStop` | Pausa o acompanhamento |
 | `:ForthStackInspect` | Mostra detalhes da pilha na linha do cursor |
 | `:ForthStackToggle` | Oculta ou mostra as pilhas |
