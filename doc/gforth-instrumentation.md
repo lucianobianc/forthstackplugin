@@ -1,81 +1,79 @@
-# Investigação de instrumentação do Gforth
+# Gforth instrumentation investigation
 
-Implementação experimental da fase 1 de `SPEC.md`. Validada em Linux x86-64,
-Gforth **0.7.3**, com Python 3 como supervisor. O protótipo continua utilizável
-separadamente; o [plugin](neovim-display.md) agora o utiliza para execução explícita.
-Não foi verificada compatibilidade com versões de desenvolvimento do Gforth.
+Experimental implementation of phase 1 of `SPEC.md`. Tested on Linux x86-64,
+Gforth **0.7.3**, with Python 3 as supervisor. The prototype remains usable on
+its own; the [plugin](neovim-display.md) now uses it for explicit execution.
+Compatibility with Gforth development versions has not been verified.
 
-## Mecanismos investigados
+## Mechanisms investigated
 
-Foram lidos os fontes distribuídos com o pacote Gforth 0.7.3, especialmente
-`debug.fs`, `debugs.fs`, `see.fs`, `source.fs`, `backtrac.fs`,
-`kernel/int.fs`, `kernel/comp.fs` e `kernel/require.fs`. Na instalação local,
-esses arquivos estão em
+The sources shipped with Gforth 0.7.3 were inspected, especially `debug.fs`,
+`debugs.fs`, `see.fs`, `source.fs`, `backtrac.fs`, `kernel/int.fs`,
+`kernel/comp.fs`, and `kernel/require.fs`. In the local installation they are in
 `/workspace/.cloud-setup/root/usr/share/gforth/0.7.3/`.
 
-| Recurso | Evidência e utilidade | Limitação para este projeto |
+| Feature | Evidence and purpose | Limitation for this project |
 | --- | --- | --- |
-| `.s`, `depth`, `sp@` | `.s` preserva os elementos e mostra `<1> 15`, depois `<1> 16`, quando chamada dentro de uma definição | Exige pontos de observação; não fornece, sozinha, eventos ou localização |
-| `~~`, `printdebugdata`, `.debugline` | `~~` compilada imprime arquivo, linha e pilha em stderr; as ações são `defer` | É uma sonda explícita no fonte; não registra automaticamente todas as palavras. A ação padrão usa a área de conversão numérica compartilhada |
-| `current-sourcepos`, `compile-sourcepos` | Capturam arquivo/linha na compilação; `compile-sourcepos` compila esses dados como literais | Não constituem mapa retroativo de todos os endereços de instrução; não fornecem coluna |
-| `see`, `xt-see` | `see sample` decompilou `: sample 15 1+ ;` | Reconstrói código, não a sequência executada nem os estados da pilha; não recupera o texto original com posições |
-| `dbg`, `break:`, `break"` | `debug.fs` implementa stepping, entrada em chamadas e breakpoints; `dbg` e `break:` foram executados com `gforth-itc` | Interativo, saída textual com endereços, dependente do engine; não fornece eventos estruturados com posições de fonte |
-| `catch`, `throw`, backtrace | Exceção não capturada mostrou o código e a cadeia de chamadas | O backtrace não é histórico de estados. `catch` restaura a pilha ao ponto protegido; ela não representa a pilha no instante da falha |
-| `before-word`, `parser1`, `compiler1` | Permitem interceptar tokens enquanto o interpretador de texto compila uma definição | Interfaces específicas do Gforth; o hook não é chamado para cada operação durante a execução de uma palavra já compilada |
-| `compile,` | Ponto de extensão do compilador (`defer`), com tradução para primitivas e otimizações | Não equivale a um token do fonte: literais, payloads inline, saltos e palavras imediatas exigem tratamento específico. Não foi usado como tracer universal |
+| `.s`, `depth`, `sp@` | `.s` preserves elements and shows `<1> 15`, then `<1> 16`, when called inside a definition | Requires observation points; does not itself provide events or locations |
+| `~~`, `printdebugdata`, `.debugline` | Compiled `~~` prints file, line, and stack to stderr; actions are deferred | An explicit source probe, not automatic tracing of every word. The default action uses shared numeric-conversion storage |
+| `current-sourcepos`, `compile-sourcepos` | Capture file/line at compile time; `compile-sourcepos` compiles these as literals | Not a retroactive map of every instruction address; no column information |
+| `see`, `xt-see` | `see sample` decompiled `: sample 15 1+ ;` | Reconstructs code, not the executed sequence or stack states; does not recover original text and positions |
+| `dbg`, `break:`, `break"` | `debug.fs` provides stepping, call nesting, and breakpoints; `dbg` and `break:` were run with `gforth-itc` | Interactive, textual address-based output, engine-dependent; no structured source-location events |
+| `catch`, `throw`, backtrace | An uncaught exception showed its code and call chain | A backtrace is not state history. `catch` restores the protected stack, not the stack at the instant of failure |
+| `before-word`, `parser1`, `compiler1` | Intercept tokens while the text interpreter compiles a definition | Gforth-specific interfaces; the hook does not run for every operation inside an already compiled word |
+| `compile,` | Deferred compiler extension point with primitive translation and optimizations | Not equivalent to a source token: literals, inline payloads, branches, and immediates need special handling. Not used as a universal tracer |
 
-O teste de `dbg sample` com o executável **gforth padrão** terminou com
-`Invalid memory address`, código de processo 1, no primeiro literal. O mesmo
-programa com **gforth-itc** terminou com código 0 e exibiu as pilhas vazia,
-`15` e `16`. Isso corresponde às dependências de ITC explicitadas em
-`debug.fs`, incluindo `breaker-size`, `set-bp` e `restore-bp`. Não se deve
-apresentar esse resultado como falha de todas as versões ou engines do Gforth.
-`--debug` imprime diagnósticos de inicialização, não um rastreamento da aplicação.
+`dbg sample` using the **default gforth executable** failed on the first literal
+with `Invalid memory address`, process code 1. The same program using
+**gforth-itc** returned code 0 and displayed empty, `15`, and `16` stacks.
+This matches the ITC dependencies explicitly noted in `debug.fs`, including
+`breaker-size`, `set-bp`, and `restore-bp`. This result must not be generalized
+to every Gforth version or engine. `--debug` prints startup diagnostics, not an
+application execution trace.
 
-Na imagem Debian usada aqui, `dbg`, `~~` e `see` já estão disponíveis. Repetir
-`require debug.fs` com o caminho de fontes realocado pode carregar dependências
-novamente: `required` compara nomes/caminhos, e os nomes relativos registrados
-na imagem diferem dos caminhos absolutos locais. Esse experimento gerou
-redefinições e erro em `search.fs`; os testes reproduzíveis usam as palavras já
-presentes na imagem, sem recarregar o pacote.
+In the Debian image used here, `dbg`, `~~`, and `see` are already available.
+Repeating `require debug.fs` with relocated source paths can reload dependencies:
+`required` compares names/paths, and relative names recorded in the image differ
+from local absolute paths. This experiment produced redefinitions and a
+`search.fs` error. Reproducible tests use the words already in the image without
+reloading the package.
 
-## Decisão e implementação
+## Decision and implementation
 
-O protótipo combina **sondas na compilação em memória** com observações do
-interpretador de texto durante a carga. O arquivo Forth é incluído
-normalmente, sem pré-processador, reescrita ou anotações no disco:
+The prototype combines **in-memory compile-time probes** with text-interpreter
+observations during loading. The Forth file is included normally, without a
+preprocessor, disk rewriting, or source annotations:
 
-1. O supervisor Python inicia um processo Gforth e abre um canal temporário
-   separado para o protocolo. stdout/stderr do programa são preservados como
-   campos distintos no resultado.
-2. Durante `included`, `before-word` substitui `parser1` somente quando a ação
-   vigente é `compiler1` ou `interpreter1`. O hook anterior é chamado e restaurado
-   depois da carga. Ações do interpretador são envolvidas por snapshots; argumentos
-   do parser não entram na pilha observada.
-3. Para cada token comum ou literal, o wrapper captura arquivo, linha, coluna,
-   nome da definição e texto do token, emite uma chamada `before`, delega a
-   compilação ao próprio `compiler1` e emite uma chamada `after`.
-4. Palavras imediatas continuam sendo compiladas/executadas pelo Gforth sem
-   sondas próprias. São registradas como `coverage: "opaque"`; as demais têm
-   `coverage: "probe"`. Comentários e delimitadores também podem aparecer no mapa.
-5. A coleta começa antes da carga, é suspensa durante a compilação e retomada ao
-   fechar uma definição. Assim, código interpretado fora das definições e sondas
-   dentro dos corpos chamados produzem eventos na mesma sequência. O modo arquivo
-   termina após a carga; o modo palavra fornece os argumentos inteiros e faz a
-   chamada adicional. A sessão inteira é protegida por `catch`.
-6. Cada sonda copia logicamente a visão da pilha via `depth`/`sp@`, sem remover
-   seus elementos. Os números usam um conversor decimal próprio, que não usa
-   `BASE`, `PAD` nem a área compartilhada de `<# ... #>`. O canal é descarregado
-   a cada evento para preservar prefixos de execução em caso de interrupção.
+1. The Python supervisor starts Gforth and opens a separate temporary protocol
+   channel. Program stdout/stderr are preserved as separate result fields.
+2. During `included`, `before-word` replaces `parser1` only when its current
+   action is `compiler1` or `interpreter1`. The previous hook is called and restored
+   after loading. Interpreter actions are wrapped in snapshots; parser arguments
+   do not appear in the observed stack.
+3. For ordinary tokens and literals, the wrapper captures file, line, column,
+   definition name, and token text, emits a `before` call, delegates compilation
+   to `compiler1`, and emits an `after` call.
+4. Immediate words are still compiled/executed by Gforth without their own probes.
+   They are recorded as `coverage: "opaque"`; other sites have `coverage: "probe"`.
+   Comments and delimiters may also appear in the map.
+5. Collection starts before loading, pauses during compilation, and resumes when
+   a definition closes. Top-level interpreted code and probes inside called
+   bodies therefore produce one chronological sequence. File mode ends after
+   loading; word mode supplies integer inputs and makes the additional call.
+   The whole session is protected by `catch`.
+6. Each probe observes the stack through `depth`/`sp@` without removing elements.
+   Numbers use a private decimal converter, avoiding `BASE`, `PAD`, and the
+   shared `<# ... #>` storage. The channel is flushed after each event to retain
+   execution prefixes on interruption.
 
-Não há interpretação estática das operações: os valores vêm do Gforth real.
-O fluxo condicional, os índices de loops e o número de ocorrências são os
-observados na execução. Sondas adicionam chamadas e alteram o código em memória;
-isso não é uma garantia de transparência para qualquer programa Forth.
+Operations are not statically interpreted: values come from real Gforth execution.
+Conditional paths, loop indices, and occurrence counts are observed at runtime.
+Probes add calls and change in-memory code; this does not guarantee transparency
+for every Forth program.
 
-## Executar
+## Run it
 
-Com `gforth` disponível no PATH, a partir da raiz do repositório:
+With `gforth` on PATH, from the repository root:
 
 ```sh
 python3 prototype/trace.py examples/compiled.fs example
@@ -83,14 +81,14 @@ python3 -m unittest discover -s tests -v
 python3 prototype/investigate.py --gforth gforth --gforth-itc gforth-itc
 ```
 
-No ambiente cloud preparado, antes dos dois primeiros comandos:
+In the prepared cloud environment, before the first two commands:
 
 ```sh
 export PATH="/workspace/.cloud-setup/bin:$PATH"
 cd /workspace/forthstackplugin
 ```
 
-Para reproduzir também a comparação com ITC nesta instalação realocada:
+To also reproduce the ITC comparison with this relocated installation:
 
 ```sh
 LD_LIBRARY_PATH=/workspace/.cloud-setup/root/usr/lib/x86_64-linux-gnu \
@@ -100,134 +98,131 @@ python3 prototype/investigate.py \
   --gforth-itc /workspace/.cloud-setup/root/usr/bin/gforth-itc
 ```
 
-`investigate.py` registra os resultados dos experimentos, inclusive as falhas
-esperadas do debugger padrão e do `throw` não capturado. Seu código de saída não
-substitui a suíte de testes. Não é preciso instalar dependências Python.
+`investigate.py` records experiment results, including expected failures of the
+default debugger and uncaught `throw`. Its exit code does not replace the test
+suite. No Python packages need to be installed.
 
-A CLI aceita `--gforth CAMINHO`, `--input N` repetido, `--timeout SEGUNDOS`,
-`--max-events N` e `--max-depth N`. Padrões: 5 segundos, 10.000 eventos e 256
-células por snapshot. O timeout inclui compilação e execução.
+CLI options include `--gforth PATH`, repeated `--input N`, `--timeout SECONDS`,
+`--max-events N`, and `--max-depth N`. Defaults: 5 seconds, 10,000 events, and
+256 cells per snapshot. Timeout covers compilation and execution.
 
-## Resultado demonstrado
+## Demonstrated result
 
-`examples/compiled.fs` define `birthday` e `example`, sem sondas no arquivo.
-O resultado contém, entre outros, os eventos reais:
+`examples/compiled.fs` defines `birthday` and `example` without source probes.
+Its result includes these real events:
 
-| seq | fase | definição/token | fonte (linha:coluna) | pilha |
+| seq | phase | definition/token | source (line:column) | stack |
 | --- | --- | --- | --- | --- |
 | 3 | before | example / birthday | 8:3 | `[15]` |
 | 4 | before | birthday / 1+ | 3:3 | `[15]` |
 | 5 | after | birthday / 1+ | 3:3 | `[16]` |
 | 6 | after | example / birthday | 8:3 | `[16]` |
 
-O ramo verdadeiro não é executado; o ramo `else` produz `18`, e o loop registra
-três ocorrências distintas de `i`, com `0`, `1` e `2`. A pilha final é `[21]`.
-Isso satisfaz a demonstração de observações **dentro** de uma palavra compilada,
-e não apenas entre linhas interpretadas no nível superior.
+The true branch is not executed; the `else` branch produces `18`. The loop records
+three occurrences of `i`: `0`, `1`, and `2`. The final stack is `[21]`.
+This demonstrates observations **inside** a compiled word, not merely between
+top-level interpreted lines.
 
-## Protocolo e significado dos eventos
+## Protocol and event meaning
 
-O supervisor retorna JSON com `format_version: 1`, `sites`, `events`, `status`,
-`complete`, `forth_code`, `process_returncode`, `stdout`, `stderr` e `diagnostic`.
-`complete: true` significa que a execução terminou normalmente, não que todas as
-primitivas ou palavras imediatas foram instrumentadas.
+The supervisor returns JSON containing `format_version: 1`, `sites`, `events`,
+`status`, `complete`, `forth_code`, `process_returncode`, `stdout`, `stderr`, and
+`diagnostic`. `complete: true` means execution ended normally, not that every
+primitive or immediate word was instrumented.
 
-Cada evento contém `seq`, `site`, `phase`, `source` e `stack`:
+Each event contains `seq`, `site`, `phase`, `source`, and `stack`:
 
-- `before` / `after`: snapshots imediatamente antes/depois de um token sondado.
-  Chamadas têm efeito inclusivo; eventos de suas definições podem aparecer entre
-  o par. Um `throw`, `exit` ou interrupção pode deixar operações sem evento `after`.
-- `entry` / `return`: fronteiras da sessão (carga e eventual chamada adicional),
-  com `site: 0` e
-  `source: null`. Não se inventa uma localização para essas fronteiras.
-- `stack`: células inteiras decimais com sinal, do fundo ao topo; topo à direita.
-- `source`: arquivo informado pelo Gforth, linha e coluna em **bytes**, começando
-  em 1, token e nome da definição. `site` identifica uma posição nesta carga;
-  `seq` distingue ocorrências cronológicas, inclusive em loops.
+- `before` / `after`: snapshots immediately before/after a probed token. Calls
+  have inclusive effects; events from their definitions can occur between the
+  pair. A `throw`, `exit`, or interruption may leave an operation without `after`.
+- `entry` / `return`: session boundaries (loading and optional additional call),
+  with `site: 0` and `source: null`. No artificial location is assigned to them.
+- `stack`: signed decimal integer cells from bottom to top; top on the right.
+- `source`: Gforth's filename, 1-based line and **byte** column, token, and
+  definition name. `site` identifies a location within this load; `seq`
+  distinguishes chronological occurrences, including loop iterations.
 
-`sites` inclui também tokens não executados e imediatos opacos; ausência de evento
-não significa erro. Fonte e eventos são ligados pelo identificador do site, e não
-pelo valor numérico da pilha. Não há IDs de instância, etiquetas ou proveniência.
+`sites` also includes unexecuted tokens and opaque immediates. Missing events do
+not imply an error. Sites and events are linked by site ID, not numeric stack
+value. There are no instance IDs, labels, or provenance yet.
 
-O canal interno usa linhas `M` (metadados com strings em hexadecimal), `E`
-(evento: sequência/site/fase/profundidade/células) e `X` (resultado de `catch`).
-`X` aceita o código e um campo opcional 0/1 indicando falha durante compilação;
-ausência mantém compatibilidade com registros antigos. Esse contexto permite
-apontar o último token compilado, sem tratá-lo como snapshot de execução.
-O parser verifica sequência, profundidade, referência ao site e marcador final.
-Saída truncada ou execução sem resultado não é apresentada como sucesso.
-`forth_code: -4096` indica limite de eventos; `-4097`, profundidade excedida.
-Timeout, falha de processo, término prematuro via `bye` e erro Forth são distintos.
-O JSON mantém o prefixo válido de eventos quando o resultado da execução é erro
-ou timeout; um protocolo inválido é rejeitado, sem reutilizar snapshots ambíguos.
+The internal channel uses `M` lines (metadata with hex-encoded strings), `E`
+(event: sequence/site/phase/depth/cells), and `X` (`catch` result). `X` accepts a
+code and an optional 0/1 field indicating failure during compilation. Omission
+preserves compatibility with older records. This context identifies the last
+compiled token without treating it as an execution snapshot.
 
-## Limitações e próximos pontos de investigação
+The parser checks sequence, depth, site references, and the final marker.
+Truncated output or execution without a result is not reported as success.
+`forth_code: -4096` means the event limit was exceeded; `-4097` means excessive
+stack depth. Timeout, process failure, early `bye`, and Forth errors are distinct.
+JSON retains valid event prefixes on errors/timeouts; invalid protocols are
+rejected without reusing ambiguous snapshots.
 
-- **Granularidade:** tokens comuns do fonte e literais, não todas as primitivas
-  da VM. `if`, `else`, `then`, loops, `exit`, `recurse`, strings e outros imediatos
-  não têm sondas próprias. Seus efeitos são visíveis nas próximas observações;
-  `recurse` pode entrar em corpo sondado. Não é possível atribuir toda mudança
-  entre eventos à última operação visível quando há um trecho opaco entre elas.
-- **Código preexistente:** palavras da imagem e bibliotecas já carregadas são
-  observadas somente nas fronteiras de chamada. O interior de novas definições
-  incluídas durante a carga é visível; código compilado depois, durante a execução,
-  não recebe automaticamente sondas. Não há instrumentação retroativa.
-- **Metaprogramação:** macros com `postpone`/`compile,`, compiladores customizados,
-  troca de `parser1`, defining words, `does>`, locals, mudanças de search order e
-  uso de `evaluate` não têm suporte geral validado. As sondas de uma definição
-  imediata executada durante a compilação ficam com coleta desativada; isso não
-  torna sua expansão rastreável. Não há reivindicação de cobertura para essas APIs.
-- **Fonte:** a posição é capturada na compilação a partir do buffer de entrada;
-  não é DWARF nem mapa persistente de instruções. Arquivos incluídos preservam
-  sua origem; fontes virtuais/evaluadas podem não fornecer localização válida.
-  UTF-8 usa coluna em bytes, não coluna visual. Edições posteriores invalidam o
-  mapa; os IDs não são estáveis entre execuções. O nome da definição é obtido de
-  `latest`, adequado ao subconjunto de definições `:` testado.
-- **Dados:** não se distingue endereço, flag, inteiro ou parte de valor duplo.
-  Não se inspecionam memória apontada, pilha de floats, locals nem pilha de retorno.
-  As posições e os valores não estabelecem identidade semântica de elementos.
-- **Transparência:** sondas mudam tamanho e endereços do código, tempo, I/O e uso
-  temporário das pilhas. Programas que inspecionam internals da VM ou dependem
-  desses detalhes podem mudar de comportamento. O logger evita a interferência
-  conhecida com conversão numérica; isso não prova transparência universal.
-- **Falhas:** não há snapshot garantido no ponto de um `throw`/signal; só o último
-  evento emitido. A pilha restaurada por `catch` não é exportada como estado da
-  falha. Exceções capturadas pelo próprio programa não necessariamente chegam ao
-  supervisor; ele informa o resultado que escapou da palavra de entrada.
-- **Recursos:** cada snapshot custa O(profundidade) e faz I/O síncrono. Os limites
-  cobrem eventos e profundidade, não o volume de metadados ou stdout/stderr, que
-  ainda são capturados em memória. O timeout encerra o processo Gforth direto;
-  não gerencia descendentes lançados pelo programa. Não é sandbox de execução
-  para arquivos não confiáveis, nem coletor adequado a cargas grandes.
+## Limitations and further investigation
 
-O próximo experimento útil é ampliar a cobertura de imediatos/estruturas de
-controle com regras específicas, sem confundir token de fonte com primitiva da
-VM, e definir um protocolo de eventos que explicite fronteiras opacas e chamadas.
-A investigação de identidade e a implementação do plugin ficam para etapas
-posteriores.
+- **Granularity:** ordinary source tokens and literals, not every VM primitive.
+  `if`, `else`, `then`, loops, `exit`, `recurse`, strings, and other immediates
+  lack their own probes. Effects appear in later observations; `recurse` can
+  enter a probed body. With an opaque segment between events, not every change
+  can be attributed to the last visible operation.
+- **Preexisting code:** image words and already-loaded libraries are observed
+  at call boundaries only. New definitions included while loading have visible
+  internals; code compiled later during execution does not automatically receive
+  probes. There is no retroactive instrumentation.
+- **Metaprogramming:** general support is not validated for `postpone`/`compile,`
+  macros, custom compilers, `parser1` replacement, defining words, `does>`, locals,
+  search-order changes, or `evaluate`. Probes inside an immediate definition
+  executed during compilation have collection disabled; this does not make its
+  expansion traceable. No general coverage is claimed for these APIs.
+- **Source:** positions come from the input buffer at compilation/interpretation,
+  not DWARF or a persistent instruction map. Included files retain their origin;
+  virtual/evaluated sources may lack valid locations. UTF-8 columns count bytes,
+  not visual columns. Later edits invalidate the map; IDs are not stable between
+  runs. Definition names come from `latest`, suitable for the tested `:` subset.
+- **Data:** addresses, flags, integers, and parts of double-cell values are not
+  distinguished. Pointed-to memory, floating-point stacks, locals, and the return
+  stack are not inspected. Positions and values do not establish semantic identity.
+- **Transparency:** probes alter code size/addresses, timing, I/O, and temporary
+  stack usage. Programs inspecting VM internals or depending on these details
+  may behave differently. Avoiding known numeric-conversion interference does
+  not prove universal transparency.
+- **Failures:** no snapshot is guaranteed at a `throw`/signal, only the last
+  emitted event. The stack restored by `catch` is not exported as fault-time
+  state. Exceptions caught by the program may never reach the supervisor; it
+  reports the result escaping the protected session.
+- **Resources:** snapshots cost O(depth) and perform synchronous I/O. Limits
+  cover events and depth, not metadata or stdout/stderr volume, still captured
+  in memory. Timeout terminates the direct Gforth process, not descendants
+  launched by the program. This is neither a sandbox for untrusted files nor
+  a collector suitable for large workloads.
 
-## Validação
+A useful next experiment is to extend immediate/control-structure coverage with
+specific rules, keeping source tokens distinct from VM primitives, and define a
+protocol with explicit opaque boundaries and calls. Identity investigation and
+later plugin stages remain separate work.
 
-A suíte contém 15 testes de integração/protocolo e passou neste ambiente. Verifica
-snapshots e posições reais, ambas as decisões condicionais, iterações, recursão,
-`exit`, operações da pilha, `>r`/`r>`, fonte incluída, saída separada, conversão
-numérica, célula mínima de 64 bits, erros de compilação/execução, entrada ausente,
-limites, timeout e `bye` prematuro. Um programa de operações da pilha também é
-executado sem instrumentação para comparar o resultado. Fixtures são verificadas
-por SHA-256 antes/depois da execução. Os testes nativos reproduzíveis confirmaram
-`see`, `.s`, `~~`, backtrace, `dbg` e `break:` nas condições descritas acima.
+## Validation
 
-## Extensão: execução do arquivo
+The Python suite contains 24 integration/protocol tests and passed in this
+environment. It checks real snapshots and positions, both conditional paths,
+iterations, recursion, `exit`, stack operations, `>r`/`r>`, included sources,
+separate output, numeric conversion, the minimum 64-bit cell, compilation/runtime
+errors, missing entry, limits, timeout, and early `bye`. It also covers top-level
+execution and unsaved snapshots. A stack-operation program is executed without
+instrumentation to compare results. Fixtures are checked by SHA-256 before/after
+execution. Reproducible native experiments confirmed `see`, `.s`, `~~`, backtrace,
+`dbg`, and `break:` under the conditions described above.
 
-A palavra de entrada é opcional na CLI e no plugin. O wrapper de `interpreter1`
-registra tokens comuns e literais no nível superior, usando `<top-level>` no
-campo `source.word`. `:` inicia uma região de compilação sem expor seu controle
-interno, `;` encerra essa região, e interpretação entre colchetes durante uma
-definição continua com coleta desativada. Palavras imediatas continuam delegadas
-ao Gforth sem sondas próprias.
+## Extension: file execution
 
-O arquivo é carregado uma única vez por sessão. No modo palavra, o efeito do
-código externo às definições permanece na pilha antes da chamada adicional.
-Definições não chamadas não geram eventos de execução. Erros na compilação
-restauram o parser externo antes do término do processo; definições incompletas
-são reportadas como erro de controle (-22).
+The entry word is optional in both the CLI and plugin. The `interpreter1` wrapper
+records ordinary top-level tokens and literals using `<top-level>` in
+`source.word`. `:` starts a compilation region without exposing compiler control
+data; `;` closes it. Bracket interpretation inside a definition also keeps
+collection disabled. Immediate words are delegated to Gforth without own probes.
+
+The file loads once per session. In word mode, top-level code's stack effects
+remain before the additional call. Uncalled definitions produce no execution
+events. Compilation errors restore the outer parser before process termination;
+incomplete definitions are reported as control errors (-22).

@@ -1,25 +1,23 @@
 # forthstackplugin
 
-Veja a pilha do seu programa Forth ao lado do código, dentro do Neovim.
-Depois de iniciar uma execução, os valores se atualizam enquanto você escreve,
-sem precisar salvar o arquivo.
+See your Forth program's stack next to the code in Neovim. Once you start a run,
+values update as you type, without saving the file.
 
-O plugin está em desenvolvimento. A visualização e a execução com Gforth já
-funcionam; etiquetas para os valores ainda não estão disponíveis.
+The plugin is under development. Stack visualization and Gforth execution work;
+labels for individual values are not available yet.
 
-## Requisitos
+## Requirements
 
-- **Neovim 0.10 ou superior.**
-- **Python 3 e Gforth** para executar seus programas.
+- **Neovim 0.10 or later.**
+- **Python 3 and Gforth** to run your programs.
 
-A demonstração precisa apenas do Neovim. A execução foi testada em Linux com
-Gforth 0.7.3.
+The demo only needs Neovim. Execution has been tested on Linux with Gforth 0.7.3.
 
-## Instalação
+## Installation
 
-### Com lazy.nvim
+### With lazy.nvim
 
-Adicione à sua lista de plugins e execute `:Lazy sync`:
+Add this to your plugin list and run `:Lazy sync`:
 
 ```lua
 {
@@ -30,9 +28,9 @@ Adicione à sua lista de plugins e execute `:Lazy sync`:
 }
 ```
 
-### Sem gerenciador de plugins (Linux)
+### Without a plugin manager (Linux)
 
-Execute no terminal:
+Run in your terminal:
 
 ```sh
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/pack/plugins/start"
@@ -40,30 +38,31 @@ git clone https://github.com/lucianobianc/forthstackplugin.git \
   "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/pack/plugins/start/forthstackplugin"
 ```
 
-Reinicie o Neovim normalmente. Não é necessário alterar seu `init.lua`.
-Se os comandos não aparecerem, confira se sua configuração permite carregar
-plugins (`:set loadplugins?`) e se a pasta instalada está no `packpath`.
+Restart Neovim normally. You do not need to change your `init.lua`.
+If the commands do not appear, check that your configuration allows plugins
+(`:set loadplugins?`) and that the installation directory is in `packpath`.
 
-## Primeiro teste
+## Try it
 
-Dentro do Neovim, execute:
+Inside Neovim, run:
 
 ```vim
 :ForthStackDemo
 ```
 
-Um exemplo será aberto com as pilhas ao lado das linhas. Para ver os detalhes,
-coloque o cursor em uma linha anotada e execute `:ForthStackInspect`.
+An example opens with stacks next to the lines. To see details, place the cursor
+on an annotated line and run `:ForthStackInspect`.
 
-Já clonou o projeto e quer experimentar sem instalar? Na raiz dele, execute:
+Already cloned the project and want to try it without installing? From the
+repository root, run:
 
 ```sh
 nvim -u examples/minimal-init.lua -c ForthStackDemo
 ```
 
-## Usando no seu código
+## Use it with your code
 
-Abra um arquivo Forth, por exemplo `exemplo.fs`:
+Open a Forth file, such as `example.fs`:
 
 ```forth
 : birthday 1+ ;
@@ -72,58 +71,57 @@ Abra um arquivo Forth, por exemplo `exemplo.fs`:
 birthday
 ```
 
-Execute uma vez, sem precisar indicar uma palavra:
+Run this once, without specifying a word:
 
 ```vim
 :ForthStackRun
 ```
 
-A linha `16` mostra `[ 16 ]`, e `birthday` mostra `[ 17 ]`. O plugin acompanha
-tanto as chamadas fora das definições quanto as operações dentro delas.
+The `16` line shows `[ 16 ]`, and `birthday` shows `[ 17 ]`. The plugin tracks
+both calls outside definitions and operations inside them.
 
-As pilhas aparecem ao lado das operações observadas. O topo da pilha fica à
-direita. A partir daí, a visualização se atualiza após uma pausa de 350 ms na
-digitação, mesmo com alterações não salvas.
+Stacks appear next to observed operations, with the top on the right. The display
+then updates after a 350 ms pause in typing, including unsaved changes.
 
-Use `:ForthStackStop` para pausar. Execute `:ForthStackRun` novamente
-para retomar. Se o código estiver incompleto, o plugin aguarda a próxima edição
-e tenta de novo, sem abrir avisos a cada tecla.
+Use `:ForthStackStop` to pause. Run `:ForthStackRun` again to resume. If the code
+is incomplete, the plugin waits for the next edit and tries again without showing
+a warning on every keystroke.
 
-Se quiser chamar uma palavra específica depois de carregar o arquivo, use
-`:ForthStackRun exemplo`. Sem argumento, apenas o código escrito no arquivo é
-executado; definições que não são chamadas não executam seus corpos.
+To call a specific word after loading the file, use `:ForthStackRun example`.
+Without an argument, only the code in the file runs; uncalled definitions do not
+execute their bodies.
 
-Cada atualização executa novamente o programa, incluindo suas operações de
-entrada e saída. A cobertura ainda é parcial: nem toda operação Forth é
-acompanhada. Consulte as [limitações](doc/neovim-display.md#validação-e-limites)
-para entender quais estados são exibidos.
+Each update runs the program again, including its input and output operations.
+Coverage is still partial: not every Forth operation is traced. See the
+[limitations](doc/neovim-display.md#validation-and-limits) for details about the
+states shown.
 
-## Comandos úteis
+## Useful commands
 
-| Comando | O que faz |
+| Command | What it does |
 | --- | --- |
-| `:ForthStackDemo` | Abre a demonstração |
-| `:ForthStackRun` | Executa o arquivo e acompanha as edições |
-| `:ForthStackRun palavra` | Carrega o arquivo e também chama uma palavra específica |
-| `:ForthStackStop` | Pausa o acompanhamento |
-| `:ForthStackInspect` | Mostra detalhes da pilha na linha do cursor |
-| `:ForthStackToggle` | Oculta ou mostra as pilhas |
-| `:ForthStackClear` | Limpa as pilhas e pausa o acompanhamento |
-| `:ForthStackStatus` | Abre o diagnóstico completo em uma janela de texto |
+| `:ForthStackDemo` | Opens the demo |
+| `:ForthStackRun` | Runs the file and follows edits |
+| `:ForthStackRun word` | Loads the file and also calls a specific word |
+| `:ForthStackStop` | Pauses automatic updates |
+| `:ForthStackInspect` | Shows stack details for the cursor line |
+| `:ForthStackToggle` | Hides or shows stacks |
+| `:ForthStackClear` | Clears stacks and pauses automatic updates |
+| `:ForthStackStatus` | Opens full diagnostics in a text window |
 
-Se algo não funcionar, comece por:
+If something does not work, start with:
 
 ```vim
 :checkhealth forth-stack
 ```
 
-## Saiba mais
+## Learn more
 
-- [Configuração, registros externos e limitações](doc/neovim-display.md)
-- [Investigação da instrumentação no Gforth](doc/gforth-instrumentation.md)
-- [Especificação do projeto](SPEC.md)
+- [Configuration, external traces, and limitations](doc/neovim-display.md)
+- [Gforth instrumentation investigation](doc/gforth-instrumentation.md)
+- [Project specification](SPEC.md)
 
-Para executar os testes, com Neovim, Python 3 e Gforth disponíveis no terminal:
+To run the tests, with Neovim, Python 3, and Gforth available in your terminal:
 
 ```sh
 bash tests/run.sh

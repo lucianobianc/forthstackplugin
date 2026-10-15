@@ -20,7 +20,7 @@ function M.clear(bufnr)
   live.disable(bufnr)
   engine.stop(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) then
-    vim.b[bufnr].forth_stack_status = 'inativo'
+    vim.b[bufnr].forth_stack_status = 'inactive'
     vim.b[bufnr].forth_stack_error = nil
   end
   close_inspect(states[bufnr])
@@ -64,7 +64,7 @@ local function watch(bufnr)
         end)
       end,
     })
-    assert(ok, 'Não foi possível acompanhar alterações no buffer')
+    assert(ok, 'Could not watch buffer changes')
     attached[bufnr] = true
   end
 end
@@ -142,23 +142,23 @@ function M.stop(bufnr)
   bufnr = buffer(bufnr)
   reloads[bufnr] = nil
   live.disable(bufnr)
-  vim.b[bufnr].forth_stack_status = 'pausado'
+  vim.b[bufnr].forth_stack_status = 'paused'
   return engine.stop(bufnr)
 end
 
 function M.status(bufnr)
   bufnr = buffer(bufnr)
-  return vim.b[bufnr].forth_stack_status or 'inativo', vim.b[bufnr].forth_stack_error
+  return vim.b[bufnr].forth_stack_status or 'inactive', vim.b[bufnr].forth_stack_error
 end
 
 function M.status_view(bufnr)
   bufnr = buffer(bufnr)
   local state, err = M.status(bufnr)
   local filename = vim.api.nvim_buf_get_name(bufnr)
-  local lines = { 'Forth Stack — diagnóstico', '', 'Estado: ' .. state,
-    'Arquivo: ' .. (filename ~= '' and filename or '(sem nome)'), '',
-    'Fechar: q', 'Salvar mensagem: :write /tmp/forth-stack-error.txt', '', }
-  vim.list_extend(lines, vim.split(err or 'Nenhum erro registrado.', '\n', { plain = true }))
+  local lines = { 'Forth Stack — diagnostics', '', 'Status: ' .. state,
+    'File: ' .. (filename ~= '' and filename or '(unnamed)'), '',
+    'Close: q', 'Save message: :write /tmp/forth-stack-error.txt', '', }
+  vim.list_extend(lines, vim.split(err or 'No errors recorded.', '\n', { plain = true }))
   local origin = vim.api.nvim_get_current_win()
   vim.cmd('botright 12new')
   local window = vim.api.nvim_get_current_win()

@@ -19,7 +19,7 @@ function M.render(bufnr, lines)
   for line, history in pairs(lines) do
     local last = history[#history]
     vim.api.nvim_buf_set_extmark(bufnr, M.namespace, line - 1, 0, {
-      virt_text = {{ M.stack(last.stack) .. '  após ' .. last.token, 'ForthStackValue' }},
+      virt_text = {{ M.stack(last.stack) .. '  after ' .. last.token, 'ForthStackValue' }},
       virt_text_pos = 'eol',
     })
   end
@@ -27,9 +27,9 @@ end
 
 function M.inspect(history)
   local last = history[#history]
-  local text = { 'Pilha: ' .. M.stack(last.stack), 'Após: ' .. last.token,
-    'Evento: ' .. last.seq, 'Observações nesta linha: ' .. #history,
-    'Topo à direita; valores sem inferência de tipo.' }
+  local text = { 'Stack: ' .. M.stack(last.stack), 'After: ' .. last.token,
+    'Event: ' .. last.seq, 'Observations on this line: ' .. #history,
+    'Top on the right; value types are not inferred.' }
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, text)
   vim.bo[buf].modifiable = false

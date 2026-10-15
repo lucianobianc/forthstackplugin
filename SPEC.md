@@ -1,199 +1,190 @@
 # Forth Stack Visualizer for Neovim
-**Especificação de Projeto — Versão 0.1**
+**Project Specification — Version 0.1**
 
-**Estado:** Proposta inicial  
-**Linguagem do plugin:** Lua  
-**Editor:** Neovim  
-**Motores Forth:** Gforth inicialmente; pForth futuramente  
-**Plataforma prioritária:** Linux
-
----
-
-## 1. Visão geral
-
-O projeto consiste em desenvolver um plugin para Neovim capaz de visualizar o estado da pilha de dados (*data stack*) durante a execução de programas Forth.
-
-A visualização deve aparecer diretamente ao lado das linhas de código, permitindo ao programador acompanhar a evolução dos valores e identificar os elementos da pilha por meio de etiquetas (*labels*) personalizadas.
-
-O sistema utilizará um interpretador Forth real como motor de execução, em vez de depender exclusivamente de análise estática.
-
-O plugin não deverá modificar a sintaxe, a semântica ou os arquivos de código-fonte Forth.
-
-### 1.1 Objetivo principal
-
-Tornar o fluxo de dados de programas Forth imediatamente compreensível por meio da visualização dos estados intermediários da pilha.
-
-### 1.2 Princípios
-
-1. Preservar integralmente a linguagem Forth.
-2. Aproveitar os recursos nativos do Neovim.
-3. Utilizar interpretadores Forth existentes.
-4. Minimizar a necessidade de configuração manual.
-5. Automatizar o rastreamento de valores e etiquetas sempre que possível.
-6. Separar execução, análise, apresentação e persistência.
-7. Desenvolver incrementalmente, mantendo o sistema funcional a cada etapa.
+- **Status:** Initial proposal
+- **Plugin language:** Lua
+- **Editor:** Neovim
+- **Forth engines:** Gforth initially; pForth in the future
+- **Primary platform:** Linux
 
 ---
 
-## 2. Experiência do usuário
+## 1. Overview
 
-### 2.1 Visualização da pilha
+The project is a Neovim plugin that visualizes the data stack during execution
+of Forth programs.
 
-Após executar o programa, o plugin deverá apresentar o estado da pilha ao lado das linhas correspondentes.
+The visualization should appear directly beside source lines, allowing the
+programmer to follow values as they change and identify stack elements using
+custom labels.
 
-Exemplo conceitual:
+The system will use a real Forth interpreter as its execution engine rather than
+relying exclusively on static analysis.
+
+The plugin must not change Forth syntax, semantics, or source files.
+
+### 1.1 Main objective
+
+Make the flow of data in Forth programs immediately understandable by displaying
+intermediate stack states.
+
+### 1.2 Principles
+
+1. Preserve the Forth language in full.
+2. Use Neovim's native capabilities.
+3. Use existing Forth interpreters.
+4. Minimize manual configuration.
+5. Automate value and label tracking wherever possible.
+6. Separate execution, analysis, presentation, and persistence.
+7. Develop incrementally, keeping the system functional at each stage.
+
+---
+
+## 2. User experience
+
+### 2.1 Stack visualization
+
+After executing a program, the plugin should show stack states beside the
+corresponding lines.
+
+Conceptual example:
 
 ```forth
-15                 [ IDADE: 15 ]
-FAZ-ANIVERSARIO    [ IDADE: 16 ]
-18                 [ IDADE: 16, 18 ]
+15                 [ AGE: 15 ]
+BIRTHDAY           [ AGE: 16 ]
+18                 [ AGE: 16, 18 ]
 >=                 [ FALSE ]
 ```
 
-Os conteúdos entre colchetes representam elementos visuais produzidos pelo plugin. Não fazem parte do arquivo Forth.
+Bracketed contents represent visual elements produced by the plugin. They are
+not part of the Forth file. The top of the stack appears on the right.
 
-O topo da pilha será representado à direita.
+The representation should distinguish numeric values, logical values, and other
+types when there is enough information to do so safely.
 
-A representação deverá distinguir valores numéricos, valores lógicos e outros tipos quando houver informação suficiente para fazê-lo com segurança.
+### 2.2 Custom labels
 
-### 2.2 Etiquetas personalizadas
-
-O usuário poderá atribuir nomes aos elementos da pilha.
-
-Exemplo:
+The user should be able to name stack elements.
 
 ```text
-Antes: [ 15 ]
-Depois: [ IDADE: 15 ]
+Before: [ 15 ]
+After:  [ AGE: 15 ]
 ```
 
-A atribuição ocorrerá por meio de uma interação do Neovim, sem modificar o código-fonte.
+Labels are assigned through a Neovim interaction without changing the source.
+A label conceptually identifies an element, not merely its position or number.
 
-Uma etiqueta identifica conceitualmente um elemento da pilha, não simplesmente sua posição ou seu valor numérico.
+### 2.3 Automatic label propagation
 
-### 2.3 Propagação automática de etiquetas
-
-As etiquetas deverão acompanhar os elementos durante as transformações que preservam sua identidade conceitual.
-
-Exemplo:
+Labels should follow elements through transformations that preserve their
+conceptual identity.
 
 ```forth
-15                 [ IDADE: 15 ]
-FAZ-ANIVERSARIO    [ IDADE: 16 ]
+15                 [ AGE: 15 ]
+BIRTHDAY           [ AGE: 16 ]
 ```
 
-Quando uma operação consumir elementos e produzir um resultado semanticamente diferente, suas etiquetas não deverão ser transferidas automaticamente.
-
-Exemplo:
+When an operation consumes elements and produces a semantically different result,
+labels must not be transferred automatically.
 
 ```forth
-15                 [ IDADE: 15 ]
-18                 [ IDADE: 15, 18 ]
+15                 [ AGE: 15 ]
+18                 [ AGE: 15, 18 ]
 >=                 [ FALSE ]
 ```
 
-O resultado da comparação não herda a etiqueta `IDADE`.
+The comparison result does not inherit `AGE`.
 
-**Regra fundamental:** a preservação de identidade não pode ser inferida exclusivamente da quantidade de elementos consumidos e produzidos.
+**Fundamental rule:** identity preservation cannot be inferred solely from the
+number of elements consumed and produced.
 
-O analisador deverá combinar informações da execução com regras de propagação e rastreamento de proveniência.
+The analyzer should combine execution information, propagation rules, and
+provenance tracking. For ambiguous cases, the initial policy is not to propagate
+the label, avoiding potentially incorrect information.
 
-Nos casos ambíguos, a política inicial será não propagar a etiqueta, evitando apresentar informações potencialmente incorretas.
+### 2.4 Stack manipulation
 
-### 2.4 Manipulação da pilha
+The analyzer should initially understand these operations:
 
-O analisador deverá compreender inicialmente as seguintes operações:
+| Word | Expected behavior |
+| --- | --- |
+| `DUP` | Duplicates an element and its identity information |
+| `DROP` | Removes an element and its label |
+| `SWAP` | Swaps elements and labels |
+| `OVER` | Copies the corresponding element and its label |
+| `ROT` | Rearranges elements and labels |
+| `NIP` | Removes the corresponding element |
+| `TUCK` | Rearranges and duplicates the corresponding elements |
 
-| Palavra | Comportamento esperado |
-|---|---|
-| `DUP` | Duplica o elemento e sua informação de identidade |
-| `DROP` | Remove elemento e etiqueta |
-| `SWAP` | Permuta elementos e etiquetas |
-| `OVER` | Copia o elemento correspondente e sua etiqueta |
-| `ROT` | Reorganiza elementos e etiquetas |
-| `NIP` | Remove o elemento correspondente |
-| `TUCK` | Reorganiza e duplica os elementos correspondentes |
-
-As cópias deverão possuir identidades de instância distintas, preservando o vínculo com sua origem.
-
-Operações aritméticas e lógicas deverão utilizar regras de propagação próprias, sem presumir que todas preservam a identidade.
+Copies must have distinct instance identities while retaining their origin link.
+Arithmetic and logical operations need their own propagation rules; they must
+not all be assumed to preserve identity.
 
 ---
 
-## 3. Execução dinâmica
+## 3. Dynamic execution
 
-### 3.1 Motor Forth
+### 3.1 Forth engine
 
-A primeira implementação utilizará Gforth.
+The first implementation will use Gforth. The architecture should allow other
+engines, such as pForth, to be added later. Their internal instrumentation
+mechanisms must not be assumed to be equivalent.
 
-O sistema deverá ser arquitetado de maneira que outros motores, como pForth, possam ser integrados posteriormente.
+### 3.2 Instrumentation
 
-Não se deve assumir que os mecanismos internos de instrumentação desses interpretadores sejam equivalentes.
+The plugin must obtain enough information to reconstruct intermediate stack
+states during execution. Where technically available, this includes:
 
-### 3.2 Instrumentação
+- The execution location in the source.
+- Stack states before and after observed operations.
+- The operation executed.
+- Chronological execution order.
+- Information needed to track element origins.
 
-O plugin deverá obter informações suficientes para reconstruir os estados intermediários da pilha durante a execução.
+Inspecting the stack only at the end of the program is insufficient.
+Instrumentation of compiled words must be investigated specifically for Gforth.
 
-Essas informações deverão incluir, quando tecnicamente disponíveis:
+**Gforth is not assumed to expose all this information through a ready-made API.**
+Additional instrumentation may be necessary.
 
-- Identificação do ponto de execução no código-fonte.
-- Estado da pilha antes e depois das operações observadas.
-- Operação executada.
-- Ordem cronológica de execução.
-- Informações necessárias para rastrear a origem dos elementos.
+### 3.3 Controlled execution
 
-A consulta à pilha apenas ao final do programa é insuficiente.
-
-A instrumentação de palavras compiladas deverá ser investigada especificamente para Gforth.
-
-**Não se pressupõe que Gforth disponibilize diretamente todas essas informações por uma API pronta.** Poderá ser necessária instrumentação adicional.
-
-### 3.3 Execução controlada
-
-A execução deverá ser iniciada explicitamente pelo usuário.
-
-Comando proposto:
+The user must explicitly start execution:
 
 ```vim
 :ForthStackRun
 ```
 
-Após iniciar explicitamente com `:ForthStackRun` (arquivo inteiro) ou
-`:ForthStackRun palavra` (arquivo e chamada adicional da palavra), a
-visualização será atualizada automaticamente após uma pausa na digitação, inclusive
-para alterações não salvas. Cada edição cancela execuções anteriores e invalida
-seus resultados. `:ForthStackStop` pausa esse acompanhamento. Esta revisão
-substitui a restrição original de execução apenas manual.
+After starting with `:ForthStackRun` (whole file) or `:ForthStackRun word` (file
+plus an additional word call), visualization updates automatically after a pause
+in typing, including unsaved changes. Each edit cancels previous runs and
+invalidates their results. `:ForthStackStop` pauses tracking. This revision
+replaces the original restriction to manual execution only.
 
-O interpretador deverá executar em um processo separado do Neovim.
+The interpreter must run in a process separate from Neovim. The plugin must
+support interruption and configurable time and recording-volume limits.
+These limits alone do not provide security isolation; untrusted Forth programs
+require additional sandboxing.
 
-O plugin deverá permitir interromper uma execução em andamento e configurar limites de tempo e volume de dados registrados.
+### 3.4 Multiple executions
 
-Esses limites não constituem, por si só, isolamento de segurança. A execução de programas Forth não confiáveis exigirá medidas adicionais de sandboxing.
+A line may execute multiple times, particularly in loops. The system should
+preserve observed-state history and allow selection of a particular occurrence.
+Initially, it may show only the latest occurrence, provided the architecture
+allows future history navigation.
 
-### 3.4 Múltiplas execuções
+### 3.5 Conditional paths
 
-Uma mesma linha poderá ser executada diversas vezes, particularmente dentro de loops.
-
-O sistema deverá preservar o histórico dos estados observados e permitir selecionar uma ocorrência específica.
-
-Na versão inicial, poderá ser exibida apenas a última ocorrência, desde que a arquitetura permita a futura navegação pelo histórico.
-
-### 3.5 Caminhos condicionais
-
-O analisador deverá refletir o caminho efetivamente percorrido durante a execução.
-
-Não será necessário calcular todos os caminhos possíveis por análise estática.
-
-O resultado exibido dependerá dos dados de entrada utilizados na execução observada.
+The analyzer must reflect the path actually taken during execution. It need not
+compute all possible paths through static analysis. Displayed results depend on
+the input used in the observed execution.
 
 ---
 
-## 4. Modelo de identidade
+## 4. Identity model
 
-Cada elemento observado na pilha deverá possuir uma representação interna independente do valor concreto.
-
-Modelo conceitual:
+Each observed stack element should have an internal representation independent
+of its concrete value.
 
 ```text
 StackElement
@@ -204,128 +195,114 @@ StackElement
     history
 ```
 
-- `instance_id`: identificação da instância observada.
-- `value`: representação do valor obtido durante a execução.
-- `label`: etiqueta opcional atribuída pelo usuário.
-- `origin`: informações sobre a criação ou derivação do elemento.
-- `history`: referências às transformações registradas.
+- `instance_id`: identifies the observed instance.
+- `value`: represents the value obtained during execution.
+- `label`: optional user-assigned label.
+- `origin`: creation or derivation information.
+- `history`: references to recorded transformations.
 
-Os identificadores de instância serão válidos no contexto de uma execução, não necessariamente entre execuções diferentes.
+Instance IDs are valid within one run, not necessarily across different runs.
+The model must distinguish:
 
-O modelo deverá distinguir:
+1. Identity preservation.
+2. Copying an element.
+3. Transforming an element.
+4. Combining elements.
+5. Consumption and disposal.
+6. Creation of a new element.
 
-1. Preservação de identidade.
-2. Cópia de um elemento.
-3. Transformação de um elemento.
-4. Combinação de elementos.
-5. Consumo e descarte.
-6. Criação de um novo elemento.
+### 4.1 Limits of automatic inference
 
-### 4.1 Limites da inferência automática
+Conceptual identity cannot always be determined from execution alone.
+Two words with similar stack effects may represent semantically different
+operations. The system must therefore support:
 
-A identidade conceitual de um valor nem sempre pode ser determinada apenas pela execução.
+- Known automatic rules.
+- Provenance tracking.
+- Conservative rules for unknown operations.
+- Optional user adjustments, without requiring them for everyday use.
 
-Duas palavras com efeitos de pilha semelhantes podem representar operações semanticamente diferentes.
-
-Portanto, o sistema deverá admitir:
-
-- Regras automáticas conhecidas.
-- Rastreamento de proveniência.
-- Regras conservadoras para operações desconhecidas.
-- Eventuais ajustes do usuário, sem torná-los obrigatórios no uso cotidiano.
-
-Não será exigida inferência semântica perfeita.
+Perfect semantic inference is not required.
 
 ---
 
-## 5. Integração com Neovim
+## 5. Neovim integration
 
-### 5.1 Tecnologia
+### 5.1 Technology
 
-O plugin será desenvolvido prioritariamente em Lua, utilizando as APIs nativas do Neovim.
+The plugin will be developed primarily in Lua, using Neovim's native APIs.
 
 ### 5.2 Virtual text
 
-A apresentação dos estados da pilha utilizará inicialmente *virtual text*.
-
-O conteúdo deverá ser exibido sem alterar o texto armazenado no buffer.
+Stack states will initially use virtual text. Displayed contents must not alter
+the text stored in the buffer.
 
 ### 5.3 Extmarks
 
-Extmarks serão utilizados para associar as informações visuais às posições do código.
+Extmarks will associate visual information with source positions. They must not
+be treated as persistent, infallible instruction identifiers. Associations must
+be invalidated or reconciled when code changes.
 
-Entretanto, extmarks não deverão ser tratados como identificadores persistentes e infalíveis de instruções.
+### 5.4 Initial interface
 
-O sistema precisará invalidar ou reconciliar associações quando o código for modificado.
+Proposed commands:
 
-### 5.4 Interface inicial
+| Command | Function |
+| --- | --- |
+| `:ForthStackRun` | Execute and collect states |
+| `:ForthStackClear` | Remove visualizations |
+| `:ForthStackToggle` | Show or hide visualizations |
+| `:ForthStackInspect` | Inspect the stack at the selected location |
+| `:ForthStackLabel` | Assign or change a label |
+| `:ForthStackStop` | Interrupt execution |
 
-Comandos propostos:
+Names are provisional. Users must be able to configure shortcuts without the
+plugin imposing global keymaps.
 
-| Comando | Função |
-|---|---|
-| `:ForthStackRun` | Executar e coletar estados |
-| `:ForthStackClear` | Remover visualizações |
-| `:ForthStackToggle` | Ativar ou ocultar visualizações |
-| `:ForthStackInspect` | Inspecionar a pilha no ponto selecionado |
-| `:ForthStackLabel` | Atribuir ou alterar uma etiqueta |
-| `:ForthStackStop` | Interromper a execução |
+### 5.5 Detailed visualization
 
-Os nomes são provisórios.
-
-O usuário deverá poder configurar atalhos, sem que o plugin imponha mapeamentos globais.
-
-### 5.5 Visualização detalhada
-
-Uma janela flutuante poderá apresentar a pilha completa, inclusive quando o conteúdo exceder a largura disponível na linha.
-
-A apresentação deverá ser legível em terminais e esquemas de cores diferentes.
+A floating window may show the entire stack, including contents wider than the
+available line. Presentation must remain readable across terminals and color
+schemes.
 
 ---
 
-## 6. Persistência de metadados
+## 6. Metadata persistence
 
-As etiquetas e preferências relacionadas ao código deverão ser armazenadas em arquivos separados.
-
-Exemplo:
+Labels and code-related preferences should be stored in separate files.
 
 ```text
-programa.fs
-programa.stack.json
+program.fs
+program.stack.json
 ```
 
-O arquivo `.fs` deverá permanecer intocado pelo plugin.
+The `.fs` file must remain untouched by the plugin. The companion file may contain:
 
-O arquivo auxiliar poderá conter:
+- User-assigned labels.
+- References to element creation locations.
+- User-defined propagation rules, when needed.
+- File-specific display preferences.
 
-- Etiquetas atribuídas pelo usuário.
-- Referências aos pontos de criação dos elementos.
-- Regras de propagação definidas pelo usuário, quando necessárias.
-- Preferências de visualização específicas do arquivo.
+Execution states need not be persisted initially.
 
-Os estados de execução não precisarão ser persistidos inicialmente.
+### 6.1 Associating labels with code
 
-### 6.1 Associação de etiquetas ao código
+Storing only line numbers or temporary execution IDs is insufficient. The system
+must provide a strategy to find label assignment locations again in later runs.
+This may combine file location, syntactic context, and operation identification.
 
-Não será suficiente armazenar apenas números de linha ou identificadores temporários de execução.
+Changes that prevent a reliable association must invalidate or flag the label
+rather than silently attaching it to the wrong element.
 
-O sistema deverá estabelecer uma estratégia para reencontrar os pontos de atribuição das etiquetas em execuções posteriores.
+### 6.2 Format
 
-Essa estratégia poderá utilizar uma combinação de localização no arquivo, contexto sintático e identificação da operação.
-
-Alterações que impossibilitem uma associação confiável deverão invalidar ou sinalizar a etiqueta correspondente, em vez de associá-la silenciosamente ao elemento errado.
-
-### 6.2 Formato
-
-JSON será o formato inicial proposto.
-
-O esquema definitivo será estabelecido após a validação do mecanismo de associação das etiquetas.
-
-O arquivo deverá possuir um identificador de versão de formato para permitir migrações futuras.
+JSON is the initially proposed format. The final schema will follow validation
+of the label association mechanism. A format version identifier must allow
+future migrations.
 
 ---
 
-## 7. Arquitetura proposta
+## 7. Proposed architecture
 
 ```text
 forth-stack.nvim/
@@ -349,160 +326,168 @@ forth-stack.nvim/
 └── README.md
 ```
 
-As responsabilidades deverão permanecer separadas:
+Responsibilities must remain separate:
 
-**Motor:** executa o programa e fornece eventos observáveis.
+**Engine:** executes programs and supplies observable events.
 
-**Rastreamento:** reconstrói estados e relações entre elementos.
+**Tracing:** reconstructs states and relationships between elements.
 
-**Etiquetas:** administra nomes e regras de propagação.
+**Labels:** manages names and propagation rules.
 
-**Persistência:** armazena e recupera metadados.
+**Persistence:** stores and retrieves metadata.
 
-**Interface:** apresenta os resultados no Neovim.
+**Interface:** presents results in Neovim.
 
-O protocolo entre motor e analisador deverá ser documentado e independente da apresentação.
-
----
-
-## 8. Escopo inicial
-
-### Incluído
-
-- Neovim em Linux.
-- Plugin em Lua.
-- Integração inicial com Gforth.
-- Execução explícita do arquivo ou palavra e atualização automática com debounce.
-- Visualização da pilha com virtual text.
-- Etiquetas personalizadas.
-- Persistência em arquivo auxiliar.
-- Rastreamento das operações básicas da pilha.
-- Transformações aritméticas simples.
-- Registro dos estados observados.
-- Tratamento de erros e interrupções.
-
-### Fora do escopo inicial
-
-- Desenvolvimento de um interpretador Forth próprio.
-- Suporte simultâneo a vários interpretadores.
-- Análise estática completa.
-- Inferência semântica perfeita.
-- Alteração da sintaxe Forth.
-- Interface gráfica independente do Neovim.
-- Suporte completo a todas as extensões de Forth.
-- Rastreamento integral da pilha de retorno.
-- Suporte a múltiplas tarefas Forth concorrentes.
+The engine/analyzer protocol must be documented and independent of presentation.
 
 ---
 
-## 9. Plano de desenvolvimento
+## 8. Initial scope
 
-### Fase 1 — Investigação técnica
+### Included
 
-**Objetivo:** comprovar a viabilidade da instrumentação com Gforth.
+- Neovim on Linux.
+- Lua plugin.
+- Initial Gforth integration.
+- Explicit file or word execution and automatic updates with debounce.
+- Stack visualization with virtual text.
+- Custom labels.
+- Companion-file persistence.
+- Basic stack-operation tracking.
+- Simple arithmetic transformations.
+- Recording observed states.
+- Error handling and interruption.
 
-Investigar como observar estados intermediários da pilha e relacioná-los às instruções do código-fonte, inclusive dentro de palavras compiladas.
+### Outside the initial scope
 
-Entregável: protótipo mínimo capaz de executar um exemplo Forth e produzir um registro estruturado de estados.
-
-**Critério de aceitação:** demonstrar rastreamento dentro de uma palavra definida pelo usuário, e não apenas entre linhas interpretadas no nível superior.
-
-Caso isso não seja viável com o mecanismo escolhido, documentar as limitações e avaliar alternativas antes de avançar.
-
-### Fase 2 — Visualização no Neovim
-
-Implementar a apresentação de estados de pilha com virtual text, inicialmente utilizando registros de execução de teste.
-
-**Critério de aceitação:** apresentar corretamente diferentes estados ao lado das linhas correspondentes, sem modificar o buffer.
-
-### Fase 3 — Modelo de identidades
-
-Implementar a pilha paralela e o rastreamento de operações básicas.
-
-**Critério de aceitação:** movimentações, duplicações e remoções preservam corretamente as associações entre elementos e etiquetas.
-
-### Fase 4 — Etiquetas e persistência
-
-Permitir atribuição interativa de etiquetas e armazenamento no arquivo auxiliar.
-
-**Critério de aceitação:** fechar e reabrir o arquivo, executar novamente o programa e recuperar as etiquetas nos pontos identificados com segurança.
-
-### Fase 5 — Integração funcional
-
-Integrar execução, rastreamento, etiquetas e visualização.
-
-**Critério de aceitação:** executar um programa Forth real, visualizar os estados e acompanhar automaticamente etiquetas em operações suportadas.
-
-### Fase 6 — Estruturas de controle
-
-Ampliar o rastreamento para condicionais, loops e execuções repetidas.
-
-**Critério de aceitação:** apresentar os estados do caminho efetivamente executado, permitindo distinguir ocorrências diferentes da mesma linha.
-
-### Fase 7 — Extensibilidade
-
-Documentar a interface dos motores e avaliar integração com pForth.
-
-A implementação efetiva do suporte a pForth dependerá de uma decisão posterior.
+- Developing a new Forth interpreter.
+- Simultaneous support for multiple interpreters.
+- Complete static analysis.
+- Perfect semantic inference.
+- Changing Forth syntax.
+- A standalone GUI independent of Neovim.
+- Full support for every Forth extension.
+- Complete return-stack tracking.
+- Multiple concurrent Forth tasks.
 
 ---
 
-## 10. Requisitos não funcionais
+## 9. Development plan
 
-### Desempenho
+### Phase 1 — Technical investigation
 
-O plugin não deverá bloquear a interface do Neovim durante a execução ou o processamento de registros extensos.
+**Objective:** demonstrate the feasibility of Gforth instrumentation.
 
-O histórico deverá possuir limites configuráveis para evitar crescimento descontrolado de memória.
+Investigate observing intermediate states and linking them to source
+instructions, including inside compiled words.
 
-### Confiabilidade
+Deliverable: a minimal prototype that executes a Forth example and produces a
+structured state log.
 
-O encerramento inesperado do interpretador não deverá comprometer a sessão do Neovim.
+**Acceptance criterion:** demonstrate tracing inside a user-defined word, not
+only between top-level interpreted lines. If the mechanism cannot do this,
+document its limitations and evaluate alternatives before proceeding.
 
-Falhas de instrumentação deverão ser comunicadas ao usuário.
+### Phase 2 — Neovim visualization
 
-Estados incompletos não deverão ser apresentados como se fossem registros completos e confiáveis.
+Implement virtual-text stack displays, initially using test execution logs.
 
-### Compatibilidade
+**Acceptance criterion:** correctly display different states beside their source
+lines without modifying the buffer.
 
-A versão mínima do Neovim e as versões suportadas de Gforth deverão ser definidas e documentadas após os primeiros testes.
+### Phase 3 — Identity model
 
-### Testabilidade
+Implement a parallel stack and basic operation tracking.
 
-Os componentes de rastreamento, propagação de etiquetas e persistência deverão possuir testes independentes da interface.
+**Acceptance criterion:** movements, duplication, and removal correctly preserve
+associations between elements and labels.
 
-A integração com o interpretador deverá ser testada com pequenos programas Forth reproduzíveis.
+### Phase 4 — Labels and persistence
+
+Allow interactive label assignment and companion-file storage.
+
+**Acceptance criterion:** close and reopen a file, rerun the program, and recover
+labels at reliably identified locations.
+
+### Phase 5 — Functional integration
+
+Integrate execution, tracing, labels, and visualization.
+
+**Acceptance criterion:** run a real Forth program, visualize its states, and
+track labels automatically through supported operations.
+
+### Phase 6 — Control structures
+
+Extend tracing to conditionals, loops, and repeated execution.
+
+**Acceptance criterion:** show the path actually executed and distinguish
+multiple occurrences on the same line.
+
+### Phase 7 — Extensibility
+
+Document the engine interface and evaluate pForth integration. Actual pForth
+support depends on a later decision.
 
 ---
 
-## 11. Questões técnicas em aberto
+## 10. Nonfunctional requirements
 
-As seguintes questões deverão ser resolvidas durante a investigação inicial:
+### Performance
 
-1. Qual mecanismo de Gforth permitirá registrar operações dentro de palavras compiladas?
-2. Qual granularidade de instrumentação será viável: palavra-fonte, primitiva executada ou ambas?
-3. Como obter estados confiáveis sem interpretar incorretamente valores que representam endereços, flags ou outros tipos?
-4. Como rastrear palavras com efeitos de pilha variáveis?
-5. Como reconstruir identidades em operações que manipulam a pilha de maneira não convencional?
-6. Como associar etiquetas persistentes a valores criados em loops e chamadas repetidas?
-7. Qual será o comportamento quando uma palavra não puder ser instrumentada?
-8. Como controlar a quantidade de eventos gerados sem prejudicar excessivamente o desempenho?
+The plugin must not block Neovim during execution or processing of large logs.
+History needs configurable limits to prevent uncontrolled memory growth.
 
-Essas questões não deverão ser resolvidas por suposição.
+### Reliability
+
+Unexpected interpreter termination must not compromise the Neovim session.
+Instrumentation failures must be reported. Incomplete states must not be
+presented as complete, reliable logs.
+
+### Compatibility
+
+The minimum Neovim version and supported Gforth versions must be defined and
+documented after initial testing.
+
+### Testability
+
+Tracing, label propagation, and persistence components need tests independent
+of the interface. Interpreter integration must be tested with small,
+reproducible Forth programs.
 
 ---
 
-## 12. Definição de sucesso
+## 11. Open technical questions
 
-A primeira versão funcional será considerada bem-sucedida quando o usuário conseguir:
+The initial investigation must address:
 
-1. Abrir um programa Forth no Neovim.
-2. Executá-lo utilizando Gforth por meio do plugin.
-3. Visualizar estados intermediários da pilha ao lado do código.
-4. Atribuir uma etiqueta a um elemento.
-5. Observar essa etiqueta acompanhar transformações suportadas.
-6. Observar a remoção da etiqueta quando o elemento for consumido sem preservação de identidade.
-7. Fechar e reabrir o arquivo mantendo as etiquetas persistidas separadamente.
-8. Realizar essas operações sem modificar a linguagem ou inserir anotações no código-fonte Forth.
+1. Which Gforth mechanism can record operations inside compiled words?
+2. What instrumentation granularity is feasible: source word, executed primitive,
+   or both?
+3. How can states be read reliably without misinterpreting addresses, flags,
+   or other value types?
+4. How can words with variable stack effects be traced?
+5. How can identities be reconstructed for unconventional stack manipulation?
+6. How can persistent labels be associated with values created in loops and
+   repeated calls?
+7. What happens when a word cannot be instrumented?
+8. How can event volume be controlled without excessive performance costs?
 
-O resultado deverá ser uma ferramenta de programação que torne o fluxo de dados de Forth visível, preservando a simplicidade e a natureza da linguagem.
+These questions must not be answered by assumption.
+
+---
+
+## 12. Definition of success
+
+The first functional version is successful when the user can:
+
+1. Open a Forth program in Neovim.
+2. Run it using Gforth through the plugin.
+3. View intermediate stack states beside the code.
+4. Assign a label to an element.
+5. See that label follow supported transformations.
+6. See the label removed when the element is consumed without identity preservation.
+7. Close and reopen the file while keeping labels persisted separately.
+8. Do this without changing the language or inserting source annotations.
+
+The result should make Forth's flow of data visible while preserving the
+language's simplicity and character.

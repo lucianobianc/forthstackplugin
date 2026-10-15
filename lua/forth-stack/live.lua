@@ -32,7 +32,7 @@ function M.changed(bufnr)
   state.generation = state.generation + 1
   local generation = state.generation
   if not require('forth-stack.config').options.auto_update then M.disable(bufnr); return end
-  vim.b[bufnr].forth_stack_status = 'aguardando'
+  vim.b[bufnr].forth_stack_status = 'pending'
   local timer = assert(vim.uv.new_timer())
   state.timer = timer
   timer:start(require('forth-stack.config').options.debounce_ms, 0, vim.schedule_wrap(function()
@@ -44,7 +44,7 @@ function M.changed(bufnr)
     end
     local ok, err = pcall(require('forth-stack')._refresh, state.entry, bufnr, { silent = true })
     if not ok then
-      vim.b[bufnr].forth_stack_status = 'erro'
+      vim.b[bufnr].forth_stack_status = 'error'
       vim.b[bufnr].forth_stack_error = tostring(err)
     end
   end))

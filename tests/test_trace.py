@@ -168,15 +168,15 @@ class TraceTests(unittest.TestCase):
         self.assertFalse(self.source.exists())
 
     def test_birthday_example_and_readable_errors(self):
-        result = self.run_source(": birthday 1+ ;\n: exemplo 16 birthday ;", entry="exemplo")
+        result = self.run_source(": birthday 1+ ;\n: example 16 birthday ;", entry="example")
         self.successful(result, [17])
         result = self.run_source(": sample 1+ ;")
         self.assertEqual(result["forth_code"], -4)
-        self.assertIn("pilha vazia", result["diagnostic"])
+        self.assertIn("stack underflow", result["diagnostic"])
         self.assertIn("token '1+'", result["diagnostic"])
         result = self.run_source(": sample +1 ;")
         self.assertEqual(result["forth_code"], -13)
-        self.assertIn("palavra Forth desconhecida", result["diagnostic"])
+        self.assertIn("unknown Forth word", result["diagnostic"])
         self.assertIn("token '+1'", result["diagnostic"])
         self.assertIn(str(self.source), result["diagnostic"])
 
@@ -223,7 +223,7 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["source"]["line"], 2)
         self.assertEqual(result["events"][-1]["source"]["token"], "1+")
         self.assertEqual(result["events"][-1]["phase"], "before")
-        self.assertIn("pilha vazia", result["diagnostic"])
+        self.assertIn("stack underflow", result["diagnostic"])
 
     def test_file_mode_include_preserves_origin_and_stack(self):
         helper = Path(self.directory.name) / "helper.fs"

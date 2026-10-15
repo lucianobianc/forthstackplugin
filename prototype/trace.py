@@ -61,27 +61,27 @@ def parse_trace(raw, context=None):
 
 def describe_failure(code, sites, events, entry, *, compiling=False):
     messages = {
-        -4: "pilha vazia: a operação precisa de valores de entrada",
-        -9: "acesso inválido à memória",
-        -10: "divisão por zero",
-        -13: "palavra Forth desconhecida",
-        -14: "palavra permitida apenas dentro de uma definição compilada",
-        -22: "estrutura de controle incompleta ou incompatível",
+        -4: "stack underflow: the operation needs input values",
+        -9: "invalid memory access",
+        -10: "division by zero",
+        -13: "unknown Forth word",
+        -14: "word is only allowed inside a compiled definition",
+        -22: "incomplete or mismatched control structure",
         -4096: "event limit exceeded",
         -4097: "stack depth limit exceeded",
     }
-    message = messages.get(code, "exceção Forth")
+    message = messages.get(code, "Forth exception")
     source = None
     if (compiling or not events) and sites:
         # The last parsed token is a compilation location, not an execution snapshot.
         source = sites[max(sites)]
-        message = "na compilação: " + message
+        message = "during compilation: " + message
     elif events:
         source = events[-1].get("source")
     if source:
         message += (f" — {source['file']}:{source['line']}:{source['column_bytes']}"
                     f" (token {source['token']!r})")
-    return message + (f"; entrada: {entry!r}" if entry else "; modo: arquivo")
+    return message + (f"; entry: {entry!r}" if entry else "; mode: file")
 
 
 def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
@@ -144,7 +144,7 @@ def trace(source, entry=None, *, gforth="gforth", inputs=(), timeout=5,
             status = "forth_error"
             diagnostic = describe_failure(result, sites, events, entry, compiling=context.get("compiling", False))
     if status == "process_error":
-        diagnostic = "Gforth encerrou com código " + str(returncode)
+        diagnostic = "Gforth exited with code " + str(returncode)
         if stderr.strip():
             diagnostic += ": " + stderr.strip()[:1500]
     return {"format_version": 1, "status": status, "complete": status == "ok",

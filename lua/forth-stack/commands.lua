@@ -8,11 +8,11 @@ function M.register()
     end, opts or {})
   end
   command('ForthStackLoad', function(args) require('forth-stack').load(args.args) end,
-    { nargs = 1, complete = 'file', desc = 'Carregar registro JSON de execução' })
+    { nargs = 1, complete = 'file', desc = 'Load a JSON execution trace' })
   command('ForthStackDemo', function() require('forth-stack').demo() end,
-    { desc = 'Abrir exemplo com pilhas, sem executar Forth' })
+    { desc = 'Open the stack demo without executing Forth' })
   command('ForthStackRun', function(args) require('forth-stack').run(args.args) end,
-    { nargs = '?', desc = 'Executar arquivo Forth ou palavra específica' })
+    { nargs = '?', desc = 'Run the Forth file or a specific word' })
   command('ForthStackStatus', function()
     require('forth-stack').status_view()
   end)
@@ -21,7 +21,7 @@ function M.register()
   command('ForthStackToggle', function() require('forth-stack').toggle() end)
   command('ForthStackInspect', function()
     if not require('forth-stack').inspect() then
-      vim.notify('Sem estado observado nesta linha', vim.log.levels.INFO, { title = 'Forth Stack' })
+      vim.notify('No stack state observed on this line', vim.log.levels.INFO, { title = 'Forth Stack' })
     end
   end)
 end
