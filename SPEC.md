@@ -1,6 +1,6 @@
 # Forth Stack Visualizer for Neovim
 
-**Project specification — Version 0.3**
+**Project specification — Version 0.4**
 
 - **Status:** Working experimental implementation; supported behavior and roadmap.
 - **Editor and platform:** Neovim 0.10 or later, primarily Linux.
@@ -203,10 +203,19 @@ depth is not declared. Known constants must not be hidden by generic output name
 An alternative that underflows or divides by known zero produces a warning and
 stops; safe continuations are marked `valid paths only`. Unknown effects instead
 produce `Effect unknown` notices and stop analysis without invented shapes.
-Unsupported loops, recursion, non-data stacks, custom parsing, and recognized
+Unsupported loop forms, recursion, non-data stacks, custom parsing, and recognized
 dictionary changes remain conservative boundaries. Supported `."` strings must
 not tokenize their contents as code or inherit their native rule after a
 redefinition. Definitions without usable input contracts have no symbolic states.
+
+Counted `do … loop` and `?do … loop` with known integer bounds are analyzed
+iteration by iteration, including nested loops, `i`, and `j`. Each invocation
+permits at most 256 iterations and shares the global step/observation budgets.
+Repeated source tokens display the most recent analyzed observation. Equal bounds
+skip `?do`; equal or reversed bounds for `do`, reversed bounds for `?do`, unknown
+bounds, `+loop`, and `leave` stop analysis with notices. Counter wraparound and
+helpers depending on the caller's loop context are not modeled. Analysis must
+not fabricate a continuation after an unsupported loop.
 
 All views share the alternatives. Line and inline text show up to four distinct
 stacks, then summarize total alternatives and minimum/maximum depth; Inspect
@@ -384,7 +393,7 @@ items, not claims about current behavior.
 | --- | --- | --- |
 | Near term | CI and compatibility matrix | Run the suite automatically on changes; verify supported Neovim/Gforth versions |
 | Near term | Observation-history navigation | Select earlier loop/call occurrences and distinguish invocation context |
-| Near term | Broader symbolic coverage | Add further native operations and selected loop/exit handling with explicit soundness boundaries and regression tests |
+| Near term | Broader symbolic coverage | Add further native operations, unknown-bound loops, +loop, leave and exit handling with explicit soundness boundaries and regression tests |
 | Hardening | Performance/output/process limits | Profile large files/traces, bound capture earlier, evaluate descendant cleanup |
 | Hardening | Included-file workflow | Define dependency tracking, unsaved includes, and source validation across files |
 | Later | Wider value representation | Preserve full cell precision and explicitly supported floating/return stacks or typed displays |

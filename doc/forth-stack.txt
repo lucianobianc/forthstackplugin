@@ -165,7 +165,10 @@ symbols, not concrete values. Supported: basic stack/arithmetic/comparison words
 earlier supported bodies or explicit contract assumptions, and IF/ELSE/THEN.
 Known values resolve ?dup; otherwise [ 0 ] | [ n, n ] shows its alternatives.
 Later operations follow each path; failing paths warn and stop. Unsupported
-operations, loops, recursion and non-data stacks stop analysis with a notice.
+operations, unsupported loop forms, recursion and non-data stacks stop analysis
+with a notice. Counted DO/LOOP and ?DO/LOOP with known bounds support nested
+loops, I and J, up to 256 iterations per loop. Repeated tokens show their latest
+observation. Unknown bounds, wraparound, +LOOP and LEAVE stop with a notice.
 Native ." preserves the stack while its string is skipped as data. Unknown
 effects report "Effect unknown" rather than inventing quantities.
 At most 16 paths, 16 nesting levels and 50000 abstract steps are explored.

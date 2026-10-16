@@ -118,13 +118,22 @@ function M.analyze(contents)
         def.code[#def.code + 1] = token
         if not token.comment and not token.string and token.called == nil then
           local pc = #def.code
-          if op == 'if' then controls[#controls + 1] = { start = pc }
+          if op == 'if' or op == 'do' or op == '?do' then controls[#controls + 1] = { start = pc, kind = op }
           elseif op == 'else' then
             local control = controls[#controls]
-            if control and not control.otherwise then control.otherwise = pc end
+            if control and control.kind == 'if' and not control.otherwise then control.otherwise = pc end
           elseif op == 'then' then
-            local control = table.remove(controls)
-            if control then def.jumps[control.start] = { otherwise = control.otherwise, finish = pc } end
+            local control = controls[#controls]
+            if control and control.kind == 'if' then
+              table.remove(controls)
+              def.jumps[control.start] = { otherwise = control.otherwise, finish = pc }
+            end
+          elseif op == 'loop' or op == '+loop' then
+            local control = controls[#controls]
+            if control and (control.kind == 'do' or control.kind == '?do') then
+              table.remove(controls)
+              def.jumps[control.start] = { finish = pc, increment = op }
+            end
           end
         end
       end

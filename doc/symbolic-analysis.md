@@ -108,11 +108,43 @@ the safe range are not modeled. Standard decimal and
 hex source-base switches and explicit numeric prefixes are recognized. Other
 base/dictionary manipulations stop subsequent analysis conservatively.
 
+## Counted loops
+
+`do … loop` and `?do … loop` consume known integer bounds `( limit start -- )`
+and analyze each iteration without executing Forth. Nested loops and their `i`
+and `j` indexes are supported. Data-stack operations, conditionals, alternatives,
+and supported calls continue inside the body. Symbolic input cells remain
+independent of actual calls elsewhere in the file.
+
+```forth
+: total ( -- sum )
+  0          \ [ 0 ]  symbolic
+  3 0 do     \ [ 0 ]  symbolic
+    i +      \ [ 3 ]  symbolic
+  loop       \ [ 3 ]  symbolic
+;
+```
+
+Here the observations after `+` are `[ 0 ]`, `[ 1 ]`, and `[ 3 ]`.
+Line-end and cursor views use the most recent observation of a repeated token;
+there is no iteration-history navigation yet. `?do` with equal bounds skips the
+body. Ordinary `do` with equal bounds does not skip in Forth: it requires counter
+wraparound, which this analyzer deliberately does not model. Starts above the
+limit, unknown bounds, more than 256 iterations, `+loop`, `leave`, and other
+unsupported loop controls stop analysis with an informational notice. Prior
+observations can remain visible, but no final result is claimed. `i` or `j`
+without enough enclosing supported loops also stops analysis. Helpers whose
+bodies rely on a caller's loop context are not inferred from that context.
+
+The 256-iteration limit applies to each loop invocation. Nested loops also share
+the existing execution-step, observation, nesting, path, and cell budgets, so
+large nested loops stop explicitly rather than monopolizing the editor.
+
 ## Conservative boundaries
 
 Analysis stops at an unsupported operation and emits an informational diagnostic;
 its known prefix may remain visible, but later states and final output names are
-not fabricated. Loops, recursion, return/floating stacks, memory operations,
+not fabricated. Unsupported loops, recursion, return/floating stacks, memory operations,
 parsing words other than supported `."`, locals, early exits, and other
 value-dependent operations are not analyzed. Double-cell literals are not
 treated as single cells.

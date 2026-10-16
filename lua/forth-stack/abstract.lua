@@ -5,7 +5,8 @@ local bit_available, bit = pcall(require, 'bit')
 local limit = 16
 M.max_paths = limit
 local function copy(path)
-  return { stack = vim.list_slice(path.stack), facts = vim.deepcopy(path.facts), assumed = path.assumed }
+  return { stack = vim.list_slice(path.stack), facts = vim.deepcopy(path.facts), assumed = path.assumed,
+    loops = vim.list_slice(path.loops or {}) }
 end
 local function value(path, cell)
   if cell.value ~= nil then return cell.value end
@@ -99,6 +100,15 @@ function M.new(diagnostic, budget)
     for _, name in ipairs(names) do path.stack[#path.stack + 1] = ctx.cell(name) end
     return { path }
   end
+  local function step(token)
+    ctx.steps = ctx.steps + 1
+    budget.steps = budget.steps + 1
+    if budget.steps > 50000 then
+      ctx.notice(token, 'Analysis incomplete: symbolic execution step limit reached (50000)')
+      return false
+    end
+    return true
+  end
   local function bounded(paths, token)
     local seen, unique = {}, {}
     for _, path in ipairs(paths) do
@@ -110,6 +120,7 @@ function M.new(diagnostic, budget)
       local facts = {}
       for id, fact in pairs(path.facts) do facts[#facts + 1] = id .. ':' .. fact end
       table.sort(facts)
+      for _, frame in ipairs(path.loops or {}) do key[#key + 1] = 'loop:' .. frame.index .. ':' .. frame.limit end
       key = table.concat(key, ',') .. '/' .. table.concat(facts, ',') .. tostring(path.assumed)
       if not seen[key] then unique[#unique + 1], seen[key] = path, true end
     end
@@ -138,9 +149,7 @@ function M.new(diagnostic, budget)
     while pc <= last do
       local t = def.code[pc]
       local op = t.token:lower()
-      ctx.steps = ctx.steps + 1
-      budget.steps = budget.steps + 1
-      if budget.steps > 50000 then ctx.notice(t, 'Analysis incomplete: symbolic execution step limit reached (50000)'); return end
+      if not step(t) then return end
       if t.comment then
       elseif t.called ~= nil then
         local called = t.called
@@ -185,6 +194,55 @@ function M.new(diagnostic, budget)
         else
           ctx.notice(t, (t.closed == false and 'Unterminated string; ' or 'Effect unknown at string/parsing word ' .. t.token .. '; ') .. 'analysis incomplete'); return
         end
+      elseif op == 'do' or op == '?do' then
+        local jump = def.jumps[pc]
+        if not jump then ctx.notice(t, 'Unclosed counted loop; analysis incomplete'); return end
+        if jump.increment ~= 'loop' then ctx.notice(t, 'Analysis incomplete: +LOOP is not supported symbolically'); return end
+        if depth >= 16 then ctx.notice(t, 'Analysis incomplete: call/control nesting limit reached (16)'); return end
+        paths = need(paths, 2, t)
+        local after = {}
+        for _, original in ipairs(paths) do
+          local path = copy(original)
+          local start = value(path, table.remove(path.stack))
+          local stop = value(path, table.remove(path.stack))
+          if start == nil or stop == nil then
+            ctx.notice(t, 'Analysis incomplete: counted loop requires known integer bounds'); return
+          end
+          local iterations = stop - start
+          if iterations <= 0 and not (op == '?do' and iterations == 0) then
+            ctx.notice(t, 'Analysis incomplete: DO/LOOP wraparound is not modeled (start must be below limit)'); return
+          end
+          if iterations > 256 then ctx.notice(t, 'Analysis incomplete: counted loop iteration limit reached (256)'); return end
+          if observe and observe(t, { path }) == false then return end
+          local active = { path }
+          for index = start, stop - 1 do
+            if not step(t) then return end
+            for _, branch in ipairs(active) do
+              branch.loops[#branch.loops + 1] = { index = index, limit = stop }
+            end
+            active = run(def, active, observe, depth + 1, pc + 1, jump.finish - 1)
+            if not active then return end
+            for _, branch in ipairs(active) do table.remove(branch.loops) end
+            if #active == 0 then break end
+            if index < stop - 1 and observe and observe(def.code[jump.finish], active) == false then return end
+          end
+          vim.list_extend(after, active)
+        end
+        paths = after
+        pc, t = jump.finish, def.code[jump.finish]
+      elseif op == 'i' or op == 'j' then
+        local offset = op == 'i' and 0 or 1
+        local after = {}
+        for _, original in ipairs(paths) do
+          local path = copy(original)
+          local frame = path.loops[#path.loops - offset]
+          if not frame then ctx.notice(t, 'Analysis incomplete: ' .. op:upper() .. ' requires an enclosing counted loop'); return end
+          path.stack[#path.stack + 1] = ctx.cell(op, frame.index)
+          after[#after + 1] = path
+        end
+        paths = after
+      elseif op == 'loop' or op == '+loop' then
+        ctx.notice(t, 'Unmatched ' .. op:upper() .. '; analysis incomplete'); return
       elseif op == 'if' then
         if depth >= 16 then ctx.notice(t, 'Analysis incomplete: call/control nesting limit reached (16)'); return end
         local jump = def.jumps[pc]

@@ -2,7 +2,10 @@ local ok, err = pcall(function()
   assert(vim.fn.exists(':ForthStackDemo') == 2, 'Demo command is missing')
   vim.cmd.ForthStackDemo()
   local ns = require('forth-stack.display').namespace
-  assert(#vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, {}) > 0, 'Demo did not display stack states')
+  local symbolic_ns = require('forth-stack.symbolic').namespace
+  local marks = #vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, {})
+    + #vim.api.nvim_buf_get_extmarks(0, symbolic_ns, 0, -1, {})
+  assert(marks > 0, 'Demo did not display stack states')
   print('PASS minimal configuration opens the demo without installation')
 end)
 if not ok then

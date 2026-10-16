@@ -127,7 +127,7 @@ executing the file**, use `:ForthStackAnalyze`. This pauses ongoing execution;
 `:ForthStackRun` resumes it. Set `symbolic = false` to disable automatic symbolic
 annotations.
 
-Unknown operations, loops, and other unsupported constructs receive an
+Unknown operations and unsupported constructs receive an
 “analysis incomplete” notice. Contract mismatches receive a warning. See
 [analysis rules and limits](doc/symbolic-analysis.md).
 
@@ -159,6 +159,22 @@ annotations remain independent. When only a declaration can be used, the display
 says `contract assumed`; matching names do not prove unchanged values. Standard
 `."` strings are parsed and preserve the data stack; redefined words use their
 own analyzed body or contract.
+
+Counted loops with known bounds also work inside documented definitions:
+
+```forth
+: total ( -- sum )
+  0          \ [ 0 ]  symbolic
+  3 0 do     \ [ 0 ]  symbolic
+    i +      \ [ 3 ]  symbolic
+  loop       \ [ 3 ]  symbolic
+;
+```
+
+Repeated body tokens show their last analyzed iteration. The example adds
+`0 + 1 + 2`. Nested loops, `i`, `j`, and `?do` are supported, with at most
+256 iterations per loop. Unknown bounds, counter wraparound, `+loop`, and
+`leave` stop analysis with a notice.
 
 Analysis keeps at most 16 paths. Long displays summarize after four different
 stacks; Inspect lists the retained alternatives. Limits produce an explicit
